@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Análisis Censo Thomas</title>
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#121212; --card:#1c1c1e; --ink:#f2f2f2; --ink2:#bdbdbd; --ink3:#8a8a8a; --line:#303033; --soft:#252528;
+  --brand:#0b0b0b; --brand2:#f07a1e; --accent:#f07a1e; --onacc:#141414;
+  --cmq:#f07a1e; --ccu:#b9bdc3; --otr:#686c72;
+  --good:#5cc95c; --bad:#f07070; --warnbg:#3a2614; --warnink:#f7b57a;
+  --sel:#33231a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:var(--brand);color:#fff;padding:14px 20px 0;border-bottom:3px solid var(--accent)}
+.hd{display:flex;align-items:center;gap:14px}
+.hd img{height:46px;width:auto}
+header h1 span{color:var(--accent)}
+header h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.2px}
+header .sub{font-size:12px;opacity:.8;margin-top:2px}
+nav{display:flex;gap:2px;margin-top:12px;overflow-x:auto}
+nav button{background:transparent;border:0;color:#b5b5b5;padding:9px 14px;font-size:14px;cursor:pointer;border-radius:8px 8px 0 0;white-space:nowrap}
+nav button.on{background:var(--bg);color:var(--accent);font-weight:600;box-shadow:inset 0 3px 0 var(--accent)}
+nav button:hover:not(.on){color:#fff}
+.filters{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f label{font-size:11px;color:var(--ink3)}
+select,textarea,input[type=text],input[type=number],input[type=date]{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px 8px;max-width:100%}
+.chk{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink2);padding-bottom:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--card);color:var(--ink2);padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
+.seg button.on{background:var(--brand2);color:var(--onacc);font-weight:600}
+main{padding:18px 20px 60px;max-width:1500px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:16px}
+.card .desc{color:var(--ink2);font-size:13px;margin:0 0 12px;max-width:80ch}
+.row{display:flex;flex-wrap:wrap;gap:16px}
+.row > .card{flex:1 1 420px;min-width:0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .lab{font-size:12px;color:var(--ink2)}
+.kpi .val{font-size:28px;font-weight:700;margin:2px 0;font-variant-numeric:tabular-nums}
+.kpi .cmp{font-size:12px;color:var(--ink2);display:flex;flex-direction:column;gap:1px}
+.up{color:var(--good)} .down{color:var(--bad)} .flat{color:var(--ink3)}
+.tw{overflow:auto;max-height:620px;border:1px solid var(--line);border-radius:9px}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 9px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{position:sticky;top:0;background:var(--soft);font-weight:600;color:var(--ink2);z-index:1;cursor:pointer;user-select:none}
+th.grp{cursor:default;text-align:center;border-left:1px solid var(--line)}
+td.l,th.l{text-align:left}
+td.bl,th.bl{border-left:1px solid var(--line)}
+tr.tot td{font-weight:700;background:var(--soft)}
+tr.sub td{color:var(--ink2)}
+tr.par td{font-weight:600;background:var(--soft)}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--sel)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 11px;border-radius:7px;cursor:pointer}
+.btn.pri{background:var(--brand2);border-color:var(--brand2);color:var(--onacc);font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.note{background:var(--warnbg);color:var(--warnink);border-radius:9px;padding:9px 12px;font-size:13px;margin-bottom:14px}
+.muted{color:var(--ink3)}
+.bar{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--cmq);vertical-align:middle}
+.concl li{margin-bottom:7px}
+.concl b{font-weight:600}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{fill:var(--ink2);font-size:12px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin:6px 0 2px}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--card);font-size:12px;padding:6px 9px;border-radius:7px;z-index:99;display:none;max-width:280px;line-height:1.35}
+.cfg input[type=text]{width:100%;min-width:140px;padding:4px 6px}
+.cfg select{padding:4px 6px}
+.cfg td{padding:4px 7px}
+.pill{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:var(--soft);color:var(--ink2)}
+.hidden{display:none!important}
+#tPerf td:first-child,#tPerf thead tr:last-child th:first-child{position:sticky;left:0;background:var(--card);z-index:2;box-shadow:1px 0 0 var(--line)}
+#tPerf thead tr:last-child th:first-child{background:var(--soft);z-index:3}
+#tPerf tr.click:hover td:first-child{background:var(--sel)}
+.notas{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;resize:vertical;line-height:1.45}
+a{color:var(--brand2)}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:14px;color:var(--ink2);font-size:13px}
+dialog{border:1px solid var(--line);border-radius:12px;padding:0;max-width:min(980px,94vw);width:100%;background:var(--card);color:var(--ink)}
+dialog .dh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+dialog .db{padding:14px 16px;max-height:75vh;overflow:auto}
+@media (max-width:700px){ main{padding:12px} .filters{padding:8px 12px} header{padding:12px 12px 0} }
+.usr{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:#ddd}
+.usr b{color:#fff}.usr .lk{color:var(--accent);cursor:pointer;text-decoration:underline}
+.usr .adm{background:var(--accent);color:#141414;border-radius:6px;padding:1px 7px;font-weight:700}
+#banner{display:none;background:var(--accent);color:#141414;padding:8px 20px;font-weight:600;font-size:13px}
+#banner button{margin-left:10px}
+.firma{font-size:11px;color:var(--ink3);margin-top:3px}
+#boot{padding:40px 20px;text-align:center;color:var(--ink2)}
+#userDlg .db button{margin:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hd"><img alt="" src="data:image/png;base64,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"><div>
+  <h1>Análisis Censo Thomas <span>· Logística Total SRL</span></h1>
+  <div class="sub" id="hdrSub"></div></div><div class="usr" id="usr"></div></div>
+  <nav id="tabs"></nav>
+</header>
+<div id="banner"></div>
+<div class="filters" id="filters"></div>
+<main id="main"><div id="boot">Cargando datos del censo…</div></main>
+<div id="tip"></div>
+<dialog id="userDlg"><div class="dh"><b>¿Quién sos?</b></div><div class="db" id="userB"></div></dialog>
+<dialog id="dlg"><div class="dh"><b id="dlgT"></b><button class="btn" onclick="document.getElementById('dlg').close()">Cerrar</button></div><div class="db" id="dlgB"></div></dialog>
+
+<script id="data" type="application/json">null</script>
+<script>
+"use strict";
+// ===== Conexión Firebase (Realtime Database) =====
+const FB_CONF = {"apiKey": "AIzaSyCYq7eaqQcRcOT1-hWMo9d5rsA-hRJGG30", "authDomain": "censo-thomas-lt.firebaseapp.com", "databaseURL": "https://censo-thomas-lt-default-rtdb.firebaseio.com", "projectId": "censo-thomas-lt", "storageBucket": "censo-thomas-lt.firebasestorage.app", "messagingSenderId": "790674955172", "appId": "1:790674955172:web:963217e7b972e0d426ff31"};
+const FB_ROOT = 'censo';
+window.CLOUD = false; window.FBDB = null; window.FB_INI = {}; window.ADMIN = false; window.USUARIO = '';
+function bootMsg(h){ const b = document.getElementById('boot'); if (b) b.innerHTML = h; }
+function cargarJs(u){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + u)); document.head.appendChild(s); }); }
+async function sha(t){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('censoLT|' + t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+function arrancar(){
+  if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', arrancar, {once: true}); return; }
+  const b = document.getElementById('boot'); if (b) b.remove();
+  window.__PAGE_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;   // copia limpia para "Descargar HTML"
+  const s = document.createElement('script');
+  s.textContent = document.getElementById('app').textContent;
+  document.body.appendChild(s);
+}
+(async function boot(){
+  const el = document.getElementById('data');
+  const txt = el.textContent.trim();
+  if (txt && txt !== 'null'){ arrancar(); return; }          // foto descargada: funciona sin conexión
+  try {
+    const V = 'https://www.gstatic.com/firebasejs/10.12.2/';
+    await cargarJs(V + 'firebase-app-compat.js');
+    await cargarJs(V + 'firebase-database-compat.js');
+    firebase.initializeApp(FB_CONF);
+    const db = firebase.database(); window.FBDB = db;
+    const g = k => db.ref(FB_ROOT + '/' + k).get().then(s => s.val());
+    const [base, cfg, notas, planes, meta, pin] = await Promise.all(['base', 'cfg', 'notas', 'planes', 'meta', 'admin/pin'].map(g));
+    window.ADMIN = false;
+    if (location.hash.toLowerCase() === '#admin'){
+      if (!pin){
+        const a = prompt('Primera vez en #ADMIN. Creá un PIN para la configuración:');
+        if (a && a === prompt('Repetí el PIN:')){ await db.ref(FB_ROOT + '/admin/pin').set(await sha(a)); window.ADMIN = true; }
+        else alert('Los PIN no coinciden. Entrás como usuario normal.');
+      } else if (sessionStorage.getItem('censoAdm') === pin) window.ADMIN = true;
+      else {
+        const a = prompt('PIN de administrador:');
+        if (a && await sha(a) === pin){ window.ADMIN = true; try { sessionStorage.setItem('censoAdm', pin); } catch(e){} }
+        else if (a !== null) alert('PIN incorrecto. Entrás como usuario normal.');
+      }
+    }
+    if (!base){
+      bootMsg(window.ADMIN ? '<b>La base está vacía.</b><br>Importá <code>firebase_import_censo.json</code> en Realtime Database (⋮ → Importar JSON) y recargá.'
+                           : 'Todavía no hay datos cargados. Avisale al analista.');
+      return;
+    }
+    el.textContent = base;
+    window.FB_INI = {cfg, notas: notas || {}, planes: planes || {}, ver: meta && meta.ver};
+    window.CLOUD = true;
+    arrancar();
+  } catch (e){
+    bootMsg('<b>No se pudo conectar con la base.</b><br>' + String(e.message || e).replace(/</g, '&lt;') + '<br>Revisá la conexión a internet y recargá la página.');
+  }
+})();
+window.addEventListener('hashchange', () => location.reload());
+</script>
+<script id="app" type="text/plain">
+"use strict";
+const DATA_EL = document.getElementById('data');
+const PAGE_HTML = window.__PAGE_HTML;
+const ORIG_JSON = DATA_EL.textContent;
+let D = JSON.parse(ORIG_JSON);
+const CIDS = D.censos.map(c => c.id);              // [AA, CA, ACTUAL]
+const CNAME = Object.fromEntries(D.censos.map(c => [c.id, c.nombre]));
+const ACT = CIDS[CIDS.length - 1], CA = CIDS[CIDS.length - 2], AA = CIDS[CIDS.length - 3];
+const EMPRESAS = ['CMQ', 'CCU', 'OTROS'];
+const SEGMENTOS = ['VALUE', 'CORE', 'CORE PLUS', 'PREMIUM', 'SUPER PREMIUM', 'SIN SEGMENTO'];
+const CANALES = ['K+T', 'AS', 'MAY', 'REF', 'OTRO'];
+const CFG_KEY = 'censoThomasCfg:' + (D.version || D.generado);
+
+// ---------- utilidades ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf0 = new Intl.NumberFormat('es-AR', {maximumFractionDigits: 0});
+const nf1 = new Intl.NumberFormat('es-AR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+const fHL = v => v == null || isNaN(v) ? '–' : nf0.format(v);
+const fP = v => v == null || isNaN(v) ? '–' : nf1.format(v * 100) + '%';
+const fPP = (v, goodUp = true) => {
+  if (v == null || isNaN(v)) return '<span class="flat">–</span>';
+  const pp = v * 100, r = Math.round(pp * 10) / 10;
+  if (r === 0) return '<span class="flat">= 0,0</span>';
+  const good = (r > 0) === goodUp;
+  return `<span class="${good ? 'up' : 'down'}">${r > 0 ? '▲ +' : '▼ '}${nf1.format(r)}</span>`;
+};
+const fPct = (a, b, goodUp = true) => {
+  if (!b) return '<span class="flat">–</span>';
+  const r = Math.round((a / b - 1) * 1000) / 10;
+  if (r === 0) return '<span class="flat">= 0,0%</span>';
+  const good = (r > 0) === goodUp;
+  return `<span class="${good ? 'up' : 'down'}">${r > 0 ? '▲ +' : '▼ '}${nf1.format(r)}%</span>`;
+};
+const div = (a, b) => b ? a / b : null;
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+// ---------- configuración editable ----------
+let VEN = {}, SUB = {};
+function loadCfg(){
+  if (CLOUD){ cloudInit(); rebuildLookups(); return; }
+  const saved = lsGet(CFG_KEY);
+  if (saved){
+    try {
+      const c = JSON.parse(saved);
+      if (c.maps && c.maps.length === D.maps.length) D.maps = c.maps;
+      if (c.venMap) D.venMap = c.venMap;
+      if (c.subMap) D.subMap = c.subMap;
+      if (c.notas) D.notas = c.notas;
+      if (c.planes) D.planes = c.planes;
+      dirty = true;
+    } catch(e){}
+  } else {
+    // archivo nuevo: recuperar las notas que se hayan escrito con una versión anterior del HTML en este navegador
+    try {
+      for (let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith('censoThomasCfg:')) continue;
+        const c = JSON.parse(localStorage.getItem(k));
+        if (c && c.notas && Object.values(c.notas).some(v => v) && !(D.notas && Object.values(D.notas).some(v => v))) D.notas = c.notas;
+        if (c && c.planes && c.planes.length && !(D.planes && D.planes.length)) D.planes = c.planes;
+      }
+    } catch(e){}
+  }
+  rebuildLookups();
+}
+let dirty = false;
+function rebuildLookups(){
+  VEN = Object.fromEntries(D.venMap.map(r => [r.ven, r.sup]));
+  SUB = Object.fromEntries(D.subMap.map(r => [r.sub, r.canal]));
+  P.forEach(p => { p.sup = VEN[p.ven] || 'OTROS (sin supervisor)'; p.canal = SUB[p.sub] || 'OTRO'; });
+}
+function saveCfg(){
+  if (CLOUD){ clearTimeout(saveCfg._t); saveCfg._t = setTimeout(cloudSync, 350); return; }
+  dirty = true;
+  lsSet(CFG_KEY, JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, notas: D.notas || {}, planes: D.planes || []}));
+}
+
+
+// ---------- nube (Firebase) ----------
+const SRV = {cfg: null, notas: {}, planes: {}};      // lo último que sabemos que está en el servidor
+const NOTA_META = {};
+const fKey = k => String(k).replace(/[.#$\[\]\/]/g, '_');
+const ahora = () => new Date().toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'});
+const cfgJson = () => JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap});
+const planJson = p => { const {_por, _ts, ...r} = p; return JSON.stringify(r); };
+function aplicarCfg(c){
+  try { c = typeof c === 'string' ? JSON.parse(c) : c; } catch(e){ return; }
+  if (!c) return;
+  if (c.maps && c.maps.length === D.maps.length) D.maps = c.maps;
+  if (c.venMap) D.venMap = c.venMap;
+  if (c.subMap) D.subMap = c.subMap;
+}
+function leerNotas(v){
+  D.notas = {};
+  Object.entries(v || {}).forEach(([k, o]) => { if (!o) return; D.notas[k] = o.t || ''; SRV.notas[k] = o.t || ''; NOTA_META[k] = o; });
+}
+function leerPlanes(v){
+  SRV.planes = {};
+  D.planes = Object.entries(v || {}).map(([id, o]) => {
+    SRV.planes[id] = o.j;
+    let p = {}; try { p = JSON.parse(o.j); } catch(e){}
+    p.id = id; p._por = o.por; p._ts = o.ts; p._orden = o.orden || 0; return p;
+  }).sort((a, b) => a._orden - b._orden);
+}
+function cloudInit(){
+  const I = window.FB_INI || {};
+  if (I.cfg){ aplicarCfg(I.cfg); SRV.cfg = cfgJson(); } else SRV.cfg = cfgJson();
+  leerNotas(I.notas); leerPlanes(I.planes);
+  const ref = k => FBDB.ref(FB_ROOT + '/' + k);
+  ref('notas').on('value', s => { if (saveCfg._t){ IGN.add('notas'); return; } const antes = JSON.stringify(D.notas); leerNotas(s.val()); if (JSON.stringify(D.notas) !== antes) reRender(); });
+  ref('planes').on('value', s => { if (saveCfg._t){ IGN.add('planes'); return; } const antes = JSON.stringify(D.planes.map(planJson)); leerPlanes(s.val()); if (JSON.stringify(D.planes.map(planJson)) !== antes) reRender(); });
+  ref('cfg').on('value', s => { const v = s.val(); if (!v || v === SRV.cfg) return; aplicarCfg(v); SRV.cfg = cfgJson(); buildFacts(); rebuildLookups(); reRender(); });
+  ref('meta/ver').on('value', s => { const v = s.val(); if (v && I.ver && v !== I.ver && v !== MI_VER) banner('Se cargó una base nueva del censo.', 'Actualizar'); });
+  ref('.info/connected'.replace(FB_ROOT + '/', ''));
+  FBDB.ref('.info/connected').on('value', s => { ONLINE = !!s.val(); pintarUsuario(); });
+  pedirUsuario();
+}
+let ONLINE = true, MI_VER = null, PEND = false;
+const IGN = new Set();
+function reRender(){
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('#main') && /INPUT|TEXTAREA|SELECT/.test(a.tagName)){
+    if (!PEND){ PEND = true; a.addEventListener('blur', () => setTimeout(() => { PEND = false; reRender(); }, 50), {once: true}); }
+    return;
+  }
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+}
+function banner(txt, btn){
+  const b = $('#banner'); b.style.display = 'block';
+  b.innerHTML = esc(txt) + (btn ? ` <button class="btn" onclick="location.reload()">${esc(btn)}</button>` : '');
+}
+async function cloudSync(){
+  saveCfg._t = null;
+  if (!CLOUD) return;
+  const up = {}, firma = {por: USUARIO || 'Sin nombre', ts: Date.now()};
+  if (ADMIN){ const c = cfgJson(); if (c !== SRV.cfg){ up['cfg'] = c; SRV.cfg = c; } }
+  Object.entries(D.notas || {}).forEach(([k, t]) => {
+    const fk = fKey(k);
+    if ((SRV.notas[fk] || '') !== (t || '')){ up['notas/' + fk] = {t: t || '', ...firma}; SRV.notas[fk] = t || ''; NOTA_META[fk] = {t, ...firma}; }
+  });
+  const vivos = new Set();
+  (D.planes || []).forEach((p, i) => {
+    if (!p.id){ p.id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); p._orden = Date.now() + i; }
+    vivos.add(p.id);
+    const j = planJson(p);
+    if (SRV.planes[p.id] !== j){ up['planes/' + p.id] = {j, orden: p._orden || Date.now(), ...firma}; SRV.planes[p.id] = j; p._por = firma.por; p._ts = firma.ts; }
+  });
+  Object.keys(SRV.planes).forEach(id => { if (!vivos.has(id)){ up['planes/' + id] = null; delete SRV.planes[id]; } });
+  try { if (Object.keys(up).length){ await FBDB.ref(FB_ROOT).update(up); estado('Guardado en la nube ✓'); } }
+  catch (e){ estado('⚠ No se pudo guardar: ' + e.message); alert('No se pudo guardar en la nube: ' + e.message); }
+  // si mientras esperábamos llegaron cambios de otros, los traemos ahora
+  for (const k of [...IGN]){
+    IGN.delete(k);
+    const v = (await FBDB.ref(FB_ROOT + '/' + k).get()).val();
+    if (k === 'notas') leerNotas(v); else leerPlanes(v);
+    reRender();
+  }
+}
+function estado(t){ document.querySelectorAll('.nubeEst').forEach(e => e.textContent = t); }
+async function publicarBase(){
+  const {notas, planes, ...base} = D;
+  MI_VER = 'v' + Date.now();
+  base.version = MI_VER;
+  const up = {base: JSON.stringify(base).replace(/<\//g, '<\\/'), cfg: cfgJson(), 'meta/ver': MI_VER, 'meta/por': USUARIO, 'meta/ts': Date.now()};
+  await FBDB.ref(FB_ROOT).update(up);
+  SRV.cfg = up.cfg;
+}
+const firmaTxt = o => o && o.por ? `Última edición: ${esc(o.por)} · ${new Date(o.ts).toLocaleString('es-AR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})}` : '';
+// ----- usuario -----
+function supsLista(){ return [...new Set(D.venMap.map(r => r.sup).filter(s => s && !/^OTROS/.test(s)))].sort(); }
+function pedirUsuario(){
+  let u = ''; try { u = localStorage.getItem('censoUsuario') || ''; } catch(e){}
+  if (ADMIN && !u) u = 'ANALISTA';
+  if (u){ setUsuario(u, true); return; }
+  const ops = supsLista().concat(['JEFE DE VENTAS', 'ANALISTA']);
+  $('#userB').innerHTML = `<p class="desc">Elegí tu nombre. Queda guardado en este dispositivo y firma lo que escribas.</p>
+    ${ops.map(o => `<button class="btn" data-u="${esc(o)}">${esc(o)}</button>`).join('')}
+    <div class="tools" style="margin-top:10px"><input type="text" id="uOtro" placeholder="Otro nombre"><button class="btn pri" id="uOk">Entrar</button></div>`;
+  $('#userB').querySelectorAll('[data-u]').forEach(b => b.onclick = () => { setUsuario(b.dataset.u); $('#userDlg').close(); });
+  $('#uOk').onclick = () => { const v = $('#uOtro').value.trim().toUpperCase(); if (v){ setUsuario(v); $('#userDlg').close(); } };
+  $('#userDlg').addEventListener('cancel', e => e.preventDefault());
+  setTimeout(() => $('#userDlg').showModal());
+}
+function setUsuario(u, inicio){
+  USUARIO = u; try { localStorage.setItem('censoUsuario', u); } catch(e){}
+  if (supsLista().includes(u)){ S.sup = u; }
+  pintarUsuario();
+  if (!inicio) render();
+}
+function pintarUsuario(){
+  const e = $('#usr'); if (!e) return;
+  if (!CLOUD){ e.innerHTML = '<span>Foto sin conexión</span>'; return; }
+  e.innerHTML = `${ADMIN ? '<span class="adm">ADMIN</span>' : ''}<span>${ONLINE ? '🟢' : '🔴 sin conexión'}</span><span>👤 <b>${esc(USUARIO || '—')}</b></span><span class="lk" id="uCambiar">cambiar</span>`;
+  $('#uCambiar').onclick = () => { try { localStorage.removeItem('censoUsuario'); } catch(e){} USUARIO = ''; pedirUsuario(); };
+}
+function migrarLocal(){
+  // trae notas/planes que hayas escrito en este navegador con la versión anterior (sin nube)
+  if (!CLOUD || !ADMIN) return;
+  if (Object.values(D.notas || {}).some(v => v) || (D.planes || []).length) return;
+  let notas = null, planes = null;
+  try {
+    for (let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i); if (!k || !k.startsWith('censoThomasCfg:')) continue;
+      const c = JSON.parse(localStorage.getItem(k));
+      if (c && c.notas && Object.values(c.notas).some(v => v)) notas = c.notas;
+      if (c && c.planes && c.planes.length) planes = c.planes;
+    }
+  } catch(e){}
+  if (!notas && !planes) return;
+  if (!confirm('Encontré notas y/o planes que escribiste en este navegador con la versión anterior del archivo. ¿Los subo a la nube para que los vean todos?')) return;
+  if (notas) D.notas = notas;
+  if (planes) D.planes = planes.map(p => ({...p}));
+  cloudSync().then(() => render());
+}
+
+// ---------- datos base ----------
+let P = D.pdv;
+let F = {};   // cid -> {p:Int32Array, m:Int32Array, v:Float64Array}
+function buildFacts(){
+  F = {};
+  for (const cid of CIDS){
+    const rows = D.facts[cid] || [];
+    const p = new Int32Array(rows.length), m = new Int32Array(rows.length), v = new Float64Array(rows.length);
+    rows.forEach((r, i) => { p[i] = r[0]; m[i] = r[1]; v[i] = r[2] * (D.maps[r[1]].factor ?? 1); });
+    F[cid] = {p, m, v, n: rows.length};
+  }
+}
+
+// ---------- filtros ----------
+const S = {tab: 'resumen', sinMay: false, sup: '', ven: '', canal: '', sub: '', est: '', seg: '', comunes: false,
+           somDim: 'segmento', dist: 'DN', distDim: 'supven', distTarget: 'EMP:CMQ', sosSeg: 'CORE', cliSort: 'comp',
+           pdaMinComp: 5, pdaMaxSom: 0.6, cliQ: '', cfgCenso: ''};
+function pdvMask(){
+  const ok = new Uint8Array(P.length);
+  P.forEach((p, i) => {
+    if (S.sinMay && p.canal === 'MAY') return;
+    if (S.sup && p.sup !== S.sup) return;
+    if (S.ven && p.ven !== S.ven) return;
+    if (S.canal && p.canal !== S.canal) return;
+    if (S.sub && p.sub !== S.sub) return;
+    if (S.est === 'ACTIVO' && p.est !== 'ACTIVO') return;
+    ok[i] = 1;
+  });
+  if (S.comunes){
+    // solo PDV con volumen de cerveza en los 3 censos
+    const has = CIDS.map(c => pdvTot(c, ok, false));
+    for (let i = 0; i < P.length; i++) if (ok[i] && !has.every(h => h[i] > 0)) ok[i] = 0;
+  }
+  return ok;
+}
+function mapOk(mi, useSeg = true){
+  const m = D.maps[mi];
+  if (!m.incluir) return false;
+  if (useSeg && S.seg && m.segmento !== S.seg) return false;
+  return true;
+}
+// volumen total de cerveza por PDV (respeta filtro de segmento si se pide)
+function pdvTot(cid, ok, useSeg = true){
+  const t = new Float64Array(P.length), f = F[cid];
+  for (let i = 0; i < f.n; i++){ const p = f.p[i]; if (ok[p] && mapOk(f.m[i], useSeg)) t[p] += f.v[i]; }
+  return t;
+}
+
+// ---------- motor de cálculo ----------
+// SOM agrupado: key(p, m) -> {tot, CMQ, CCU, OTROS}
+function aggregate(cid, ok, keyFn){
+  const out = new Map(), f = F[cid];
+  for (let i = 0; i < f.n; i++){
+    const p = f.p[i], mi = f.m[i];
+    if (!ok[p] || !mapOk(mi)) continue;
+    const k = keyFn(P[p], D.maps[mi]); if (k == null) continue;
+    let o = out.get(k); if (!o){ o = {tot: 0, CMQ: 0, CCU: 0, OTROS: 0}; out.set(k, o); }
+    o.tot += f.v[i]; o[D.maps[mi].empresa] = (o[D.maps[mi].empresa] || 0) + f.v[i];
+  }
+  return out;
+}
+const DIMS = {
+  segmento: {lab: 'Segmento', fn: (p, m) => m.segmento, orden: SEGMENTOS},
+  marca: {lab: 'Marca', fn: (p, m) => m.marca},
+  calibre: {lab: 'Calibre', fn: (p, m) => m.calibre},
+  supven: {lab: 'Supervisor › Promotor', hier: [p => p.sup, p => p.ven], fld: ['sup', 'ven']},
+  sup: {lab: 'Supervisor', fn: p => p.sup, fld: ['sup']},
+  ven: {lab: 'Promotor', fn: p => p.ven, fld: ['ven']},
+  canalsub: {lab: 'Canal › Subcanal', hier: [p => p.canal, p => p.sub], fld: ['canal', 'sub']},
+  canal: {lab: 'Canal', fn: p => p.canal, orden: CANALES, fld: ['canal']},
+  sub: {lab: 'Subcanal', fn: p => p.sub, fld: ['sub']},
+};
+function totalAll(cid, ok){
+  const t = {tot: 0, CMQ: 0, CCU: 0, OTROS: 0}, f = F[cid];
+  for (let i = 0; i < f.n; i++){
+    if (!ok[f.p[i]] || !mapOk(f.m[i])) continue;
+    t.tot += f.v[i]; t[D.maps[f.m[i]].empresa] += f.v[i];
+  }
+  return t;
+}
+// presencia: devuelve Float64Array con HL del "target" por PDV
+function targetFn(spec){
+  const [tipo, val] = spec.split(':');
+  if (tipo === 'EMP') return m => m.empresa === val;
+  if (tipo === 'SEG') { const [seg, emp] = val.split('|'); return m => m.segmento === seg && (!emp || m.empresa === emp); }
+  if (tipo === 'MAR') return m => m.marca === val;
+  if (tipo === 'CAL') { const [cal, emp] = val.split('|'); return m => m.calibre === cal && (!emp || m.empresa === emp); }
+  return () => false;
+}
+function pdvTarget(cid, ok, pred){
+  const t = new Float64Array(P.length), f = F[cid];
+  for (let i = 0; i < f.n; i++){ const p = f.p[i]; if (ok[p] && mapOk(f.m[i]) && pred(D.maps[f.m[i]])) t[p] += f.v[i]; }
+  return t;
+}
+// DN y DP de un target, agrupado por una dimensión de PDV (o total si groupFn null)
+function distrib(cid, ok, pred, groupFn){
+  const tot = pdvTot(cid, ok), tg = pdvTarget(cid, ok, pred), out = new Map();
+  for (let p = 0; p < P.length; p++){
+    if (!ok[p] || tot[p] <= 0) continue;
+    const k = groupFn ? groupFn(P[p]) : 'TOTAL';
+    let o = out.get(k); if (!o){ o = {n: 0, nPres: 0, vol: 0, volPres: 0}; out.set(k, o); }
+    o.n++; o.vol += tot[p];
+    if (tg[p] > 0){ o.nPres++; o.volPres += tot[p]; }
+  }
+  for (const o of out.values()){ o.DN = div(o.nPres, o.n); o.DP = div(o.volPres, o.vol); }
+  return out;
+}
+
+// arma filas padre + hijos a partir de un Map por censo con clave "padre||hijo"
+function hierRows(byC, sumFn, sizeFn){
+  const par = new Map();
+  for (const c of CIDS) for (const [k, v] of byC[c]){
+    const [a, b] = k.split('||');
+    if (!par.has(a)) par.set(a, new Map());
+    const ch = par.get(a); if (!ch.has(b)) ch.set(b, {}); ch.get(b)[c] = v;
+  }
+  const out = [];
+  const ps = [...par.entries()].map(([a, ch]) => {
+    const d = {}; for (const c of CIDS) d[c] = sumFn([...ch.values()].map(x => x[c]).filter(Boolean));
+    return {a, ch, d};
+  }).sort((x, y) => sizeFn(y.d[ACT]) - sizeFn(x.d[ACT]));
+  for (const p of ps){
+    out.push({k: p.a, d: p.d, _cls: 'par', nivel: 1});
+    [...p.ch.entries()].map(([b, x]) => ({k: b, d: Object.fromEntries(CIDS.map(c => [c, x[c] || sumFn([])])), _cls: 'sub', nivel: 2}))
+      .filter(r => CIDS.some(c => sizeFn(r.d[c]) > 0))
+      .sort((x, y) => sizeFn(y.d[ACT]) - sizeFn(x.d[ACT])).forEach(r => out.push(r));
+  }
+  return out;
+}
+const sumAgg = arr => arr.reduce((s, o) => ({tot: s.tot + o.tot, CMQ: s.CMQ + (o.CMQ || 0), CCU: s.CCU + (o.CCU || 0), OTROS: s.OTROS + (o.OTROS || 0)}), {tot: 0, CMQ: 0, CCU: 0, OTROS: 0});
+const sumDist = arr => { const o = arr.reduce((s, x) => ({n: s.n + (x.n || 0), nPres: s.nPres + (x.nPres || 0), vol: s.vol + (x.vol || 0), volPres: s.volPres + (x.volPres || 0)}), {n: 0, nPres: 0, vol: 0, volPres: 0}); o.DN = div(o.nPres, o.n); o.DP = div(o.volPres, o.vol); return o; };
+const indent = r => r.nivel === 2 ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '';
+
+// ---------- tabla genérica ----------
+// cols: [{lab, l(bool align left), fn(row)->html, sortVal(row), cls}]
+const SORTS = {};
+function table(id, cols, rows, opts = {}){
+  const st = SORTS[id];
+  let rs = rows.slice();
+  if (st && !opts.nosort){ const c = cols[st.i]; if (c && c.sv) rs.sort((a, b) => { const x = c.sv(a), y = c.sv(b); return (x < y ? -1 : x > y ? 1 : 0) * st.d; }); }
+  const groups = opts.groups ? `<tr>${opts.groups.map(g => `<th class="grp" colspan="${g[1]}">${esc(g[0])}</th>`).join('')}</tr>` : '';
+  const head = `<tr>${cols.map((c, i) => `<th class="${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''}" ${opts.nosort ? '' : `data-t="${id}" data-i="${i}" title="Ordenar"`}>${c.lab}${st && st.i === i ? (st.d > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('')}</tr>`;
+  const body = rs.map(r => `<tr class="${r._cls || ''} ${r._drill ? 'click' : ''}" ${r._click != null && r._click !== '' ? `data-click="${esc(r._click)}"` : ''} ${r._drill ? `data-drill="${esc(r._drill)}"` : ''} ${r._drill ? 'title="Clic para ver el detalle"' : ''}>${cols.map(c => `<td class="${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''}">${c.fn(r)}</td>`).join('')}</tr>`).join('');
+  const foot = opts.total ? `<tr class="tot">${cols.map(c => `<td class="${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''}">${c.fn(opts.total)}</td>`).join('')}</tr>` : '';
+  return `<div class="tools"><button class="btn" data-csv="${id}">Descargar CSV</button>${opts.extra || ''}</div>
+    <div class="tw"><table id="${id}"><thead>${groups}${head}</thead><tbody>${body}${foot}</tbody></table></div>`;
+}
+document.addEventListener('click', e => {
+  const th = e.target.closest('th[data-t]');
+  if (th){
+    const id = th.dataset.t, i = +th.dataset.i, st = SORTS[id];
+    SORTS[id] = st && st.i === i ? {i, d: -st.d} : {i, d: -1};
+    render(); return;
+  }
+  const b = e.target.closest('[data-csv]');
+  if (b){ csvTable(b.dataset.csv); return; }
+  const tr = e.target.closest('tr[data-click]');
+  if (tr){ verPdv(+tr.dataset.click); return; }
+  const dr = e.target.closest('tr[data-drill]');
+  if (dr){ drill(dr.dataset.drill); }
+});
+function csvTable(id){
+  const t = document.getElementById(id); if (!t) return;
+  const lines = [...t.querySelectorAll('tr')].map(tr => [...tr.children].map(td => {
+    let s = td.textContent.replace(/[▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim();
+    return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(';'));
+  descargar(id + '.csv', '﻿' + lines.join('\r\n'), 'text/csv');
+}
+function descargar(nombre, contenido, tipo){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], {type: tipo + ';charset=utf-8'}));
+  a.download = nombre; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+// columnas estándar: valor en 3 censos + Δ vs CA + Δ vs AA
+function cols3(lab, get, fmt, opts = {}){
+  const goodUp = opts.goodUp ?? (() => true);
+  const isPct = fmt === fP;
+  return [
+    ...CIDS.map((c, i) => ({lab: (i === 0 ? `${lab} ` : '') + c, bl: i === 0, fn: r => fmt(get(r, c)), sv: r => get(r, c) ?? -1e9})),
+    {lab: 'Δ vs ' + CA, fn: r => isPct ? fPP(sub(get(r, ACT), get(r, CA)), goodUp(r)) : fPct(get(r, ACT), get(r, CA), goodUp(r)), sv: r => sub(get(r, ACT), get(r, CA)) ?? -1e9},
+    {lab: 'Δ vs ' + AA, fn: r => isPct ? fPP(sub(get(r, ACT), get(r, AA)), goodUp(r)) : fPct(get(r, ACT), get(r, AA), goodUp(r)), sv: r => sub(get(r, ACT), get(r, AA)) ?? -1e9},
+  ];
+}
+function sub(a, b){ return a == null || b == null ? null : a - b; }
+
+// ---------- tooltip ----------
+const tip = $('#tip');
+document.addEventListener('mousemove', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t){ tip.style.display = 'none'; return; }
+  tip.innerHTML = t.dataset.tip; tip.style.display = 'block';
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+});
+
+// ---------- encabezado, pestañas y filtros ----------
+const TABS = [['resumen', 'Resumen'], ['som', 'Share of Market'], ['sos', 'Share of Segment'], ['dist', 'Distribución'],
+              ['opo', 'Conclusiones'], ['perf', 'Performance por cliente'], ['cli', 'PDA'], ['cfg', 'Configuración']];
+function renderTabs(){
+  if (CLOUD && !ADMIN && S.tab === 'cfg') S.tab = 'resumen';
+  $('#tabs').innerHTML = TABS.filter(([k]) => !(CLOUD && !ADMIN && k === 'cfg')).map(([k, l]) => `<button class="${S.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('');
+  $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
+  $('#hdrSub').textContent = `Censos: ${D.censos.map(c => c.nombre).join(' · ')} — Actual: ${CNAME[ACT]}${D.fuenteActNombre ? ' (' + D.fuenteActNombre + ')' : ''} · Censo anterior: ${CNAME[CA]} · Año anterior: ${CNAME[AA]}`;
+}
+function opts(list, cur, todos){
+  return `<option value="">${todos}</option>` + list.map(v => `<option ${v === cur ? 'selected' : ''} value="${esc(v)}">${esc(v)}</option>`).join('');
+}
+function renderFilters(){
+  if (S.tab === 'cfg'){ $('#filters').classList.add('hidden'); return; }
+  $('#filters').classList.remove('hidden');
+  const sups = [...new Set(P.map(p => p.sup))].sort();
+  const vens = [...new Set(P.filter(p => !S.sup || p.sup === S.sup).map(p => p.ven))].sort();
+  const subs = [...new Set(P.filter(p => !S.canal || p.canal === S.canal).map(p => p.sub))].sort();
+  $('#filters').innerHTML = `
+    <div class="f"><label>Supervisor</label><select id="fSup">${opts(sups, S.sup, 'Todos')}</select></div>
+    <div class="f"><label>Promotor</label><select id="fVen">${opts(vens, S.ven, 'Todos')}</select></div>
+    <div class="f"><label>Canal</label><select id="fCanal">${opts(CANALES.filter(c => P.some(p => p.canal === c)), S.canal, 'Todos')}</select></div>
+    <div class="f"><label>Subcanal</label><select id="fSub">${opts(subs, S.sub, 'Todos')}</select></div>
+    <div class="f"><label>Segmento (mercado)</label><select id="fSeg">${opts(SEGMENTOS, S.seg, 'Total cerveza')}</select></div>
+    <div class="f"><label>Clientes</label><select id="fEst"><option value="">Todos</option><option value="ACTIVO" ${S.est === 'ACTIVO' ? 'selected' : ''}>Solo activos hoy</option></select></div>
+    <label class="chk" title="Saca del análisis a los PDV del canal mayorista"><input type="checkbox" id="fMay" ${S.sinMay ? 'checked' : ''}> Sin mayoristas</label>
+    <label class="chk" title="Compara solo los PDV que tienen volumen de cerveza en los 3 censos"><input type="checkbox" id="fCom" ${S.comunes ? 'checked' : ''}> Solo PDV presentes en los 3 censos</label>
+    <button class="btn" id="fClr">Limpiar</button>`;
+  $('#fMay').onchange = e => { S.sinMay = e.target.checked; render(); };
+  $('#fSup').onchange = e => { S.sup = e.target.value; S.ven = ''; render(); };
+  $('#fVen').onchange = e => { S.ven = e.target.value; render(); };
+  $('#fCanal').onchange = e => { S.canal = e.target.value; S.sub = ''; render(); };
+  $('#fSub').onchange = e => { S.sub = e.target.value; render(); };
+  $('#fSeg').onchange = e => { S.seg = e.target.value; render(); };
+  $('#fEst').onchange = e => { S.est = e.target.value; render(); };
+  $('#fCom').onchange = e => { S.comunes = e.target.checked; render(); };
+  $('#fClr').onclick = () => { Object.assign(S, {sinMay: false, sup: '', ven: '', canal: '', sub: '', seg: '', est: '', comunes: false}); render(); };
+}
+function avisoUniverso(){
+  const notas = [];
+  if (S.canal === 'REF') notas.push('El censo On premise (REF) no releva volumen en HL, por eso no hay datos de share para ese canal.');
+  if (S.seg) notas.push(`Mercado filtrado a <b>${esc(S.seg)}</b>: todos los shares se calculan dentro de ese segmento.`);
+  return notas.length ? `<div class="note">${notas.join('<br>')}</div>` : '';
+}
+
+// ---------- RESUMEN ----------
+function kpi(lab, vals, fmt, isPct, extra = ''){
+  const [a, b, c] = [vals[AA], vals[CA], vals[ACT]];
+  const d1 = isPct ? fPP(sub(c, b)) : fPct(c, b), d2 = isPct ? fPP(sub(c, a)) : fPct(c, a);
+  return `<div class="kpi"><div class="lab">${lab}</div><div class="val">${fmt(c)}</div>
+    <div class="cmp"><span>vs ${CA} (${fmt(b)}): ${d1}${isPct ? ' pp' : ''}</span><span>vs ${AA} (${fmt(a)}): ${d2}${isPct ? ' pp' : ''}</span>${extra}</div></div>`;
+}
+function rResumen(){
+  const ok = pdvMask();
+  const T = {}, DN = {}, NP = {};
+  for (const c of CIDS){
+    T[c] = totalAll(c, ok);
+    const d = distrib(c, ok, targetFn('EMP:CMQ'), null).get('TOTAL') || {};
+    DN[c] = d; NP[c] = d.n || 0;
+  }
+  const som = Object.fromEntries(CIDS.map(c => [c, div(T[c].CMQ, T[c].tot)]));
+  let h = avisoUniverso();
+  h += `<div class="kpis">
+    ${kpi('Share of Market CMQ', som, fP, true)}
+    ${kpi('Mercado de cerveza (HL)', Object.fromEntries(CIDS.map(c => [c, T[c].tot])), fHL, false)}
+    ${kpi('Volumen CMQ (HL)', Object.fromEntries(CIDS.map(c => [c, T[c].CMQ])), fHL, false)}
+    ${kpi('PDV con venta de cerveza', NP, fHL, false)}
+    ${kpi('Distribución física CMQ', Object.fromEntries(CIDS.map(c => [c, DN[c].DN])), fP, true)}
+    ${kpi('Distribución ponderada CMQ', Object.fromEntries(CIDS.map(c => [c, DN[c].DP])), fP, true)}
+  </div>`;
+  // gráfico 1: mix por compañía (barras 100%)
+  const W = 640, rowH = 34, x0 = 70;
+  let svg = `<svg viewBox="0 0 ${W} ${CIDS.length * rowH + 10}" role="img" aria-label="Participación por compañía en cada censo">`;
+  CIDS.forEach((c, i) => {
+    const t = T[c]; let x = x0; const y = i * rowH + 4, w = W - x0 - 10;
+    svg += `<text x="0" y="${y + 17}">${c}</text>`;
+    EMPRESAS.forEach((e, j) => {
+      const sh = div(t[e], t.tot) || 0, ww = Math.max(0, sh * w - (j < 2 ? 2 : 0));
+      if (ww > 0){
+        svg += `<rect x="${x}" y="${y}" width="${ww}" height="24" rx="${j === 2 ? 4 : 0}" fill="var(--${e === 'CMQ' ? 'cmq' : e === 'CCU' ? 'ccu' : 'otr'})" data-tip="<b>${c} · ${e}</b><br>${fP(sh)} del mercado<br>${fHL(t[e])} HL"></rect>`;
+        if (sh > .07) svg += `<text x="${x + 6}" y="${y + 16}" style="fill:var(--onacc);font-weight:600">${fP(sh)}</text>`;
+      }
+      x += sh * w;
+    });
+  });
+  svg += '</svg>';
+  const leg = `<div class="legend">${EMPRESAS.map(e => `<span><span class="dot" style="background:var(--${e === 'CMQ' ? 'cmq' : e === 'CCU' ? 'ccu' : 'otr'})"></span>${e}</span>`).join('')}</div>`;
+  // gráfico 2: SOM por segmento (puntos por censo)
+  const segAgg = Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, (p, m) => m.segmento)]));
+  const segs = SEGMENTOS.filter(s => s !== 'SIN SEGMENTO' && CIDS.some(c => segAgg[c].has(s)));
+  const H2 = segs.length * 34 + 30, xs = v => 120 + v * (W - 140);
+  let svg2 = `<svg viewBox="0 0 ${W} ${H2}" role="img" aria-label="SOM CMQ por segmento en los 3 censos">`;
+  [0, .25, .5, .75, 1].forEach(g => { svg2 += `<line x1="${xs(g)}" x2="${xs(g)}" y1="0" y2="${H2 - 22}" stroke="var(--line)"/><text x="${xs(g)}" y="${H2 - 6}" text-anchor="middle">${g * 100}%</text>`; });
+  const shp = {[AA]: 'var(--otr)', [CA]: 'var(--ccu)', [ACT]: 'var(--cmq)'};
+  segs.forEach((s, i) => {
+    const y = i * 34 + 16;
+    svg2 += `<text x="0" y="${y + 4}">${s}</text>`;
+    const vals = CIDS.map(c => { const o = segAgg[c].get(s); return o ? div(o.CMQ, o.tot) : null; });
+    const vv = vals.filter(v => v != null);
+    if (vv.length > 1) svg2 += `<line x1="${xs(Math.min(...vv))}" x2="${xs(Math.max(...vv))}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="3"/>`;
+    CIDS.forEach((c, j) => { if (vals[j] != null) svg2 += `<circle cx="${xs(vals[j])}" cy="${y}" r="${c === ACT ? 7 : 5.5}" fill="${shp[c]}" stroke="var(--card)" stroke-width="2" data-tip="<b>${s} · ${c}</b><br>SOM ${fP(vals[j])}"></circle>`; });
+    if (vals[2] != null) svg2 += `<text x="${xs(vals[2])}" y="${y - 10}" text-anchor="middle" style="fill:var(--ink);font-weight:600">${fP(vals[2])}</text>`;
+  });
+  svg2 += '</svg>';
+  const leg2 = `<div class="legend">${CIDS.map(c => `<span><span class="dot" style="background:${shp[c]}"></span>${CNAME[c]}</span>`).join('')}</div>`;
+  h += `<div class="row">
+    <div class="card chart"><h2>Participación por compañía</h2><p class="desc">Mix del mercado de cerveza censado en cada censo.</p>${leg}${svg}</div>
+    <div class="card chart"><h2>SOM CMQ por segmento</h2><p class="desc">Cada punto es un censo. El valor arriba es el censo actual.</p>${leg2}${svg2}</div></div>`;
+  // calidad de datos
+  h += `<div class="card"><h2>Notas de calidad de datos</h2><ul class="concl">${calidadNotas().map(n => `<li>${n}</li>`).join('')}</ul></div>`;
+  return h;
+}
+function calidadNotas(){
+  const n = D.calidad.map(c => `<b>${esc(c.censo)}</b> · ${esc(c.tipo)}: ${esc(c.detalle)}`);
+  n.push('Corona, Patagonia, Michelob y 0.0% vienen en septiembre como "total calibres": en la apertura por calibre se muestran como TOTAL CALIBRES en los 3 censos para que sean comparables.');
+  n.push('VINOS VALUE y 0.0% GANCIA no se cuentan en el total cerveza, igual que en el tablero del censo de AB InBev (con esto septiembre da 79,9%). Todo esto se puede cambiar en Configuración.');
+  const aj = D.maps.filter(m => (m.factor ?? 1) !== 1);
+  if (aj.length) n.push('Factores de conversión corregidos: ' + aj.map(m => `${m.censo} ${esc(m.marca_orig)} ${esc(m.calibre_orig)} ×${nf1.format(m.factor * 100)}%`).join(' · ') + '.');
+  return n;
+}
+
+// ---------- SHARE OF MARKET ----------
+function rSom(){
+  const ok = pdvMask(), dim = DIMS[S.somDim];
+  const A = Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, dim.hier ? (p => dim.hier[0](p) + '||' + dim.hier[1](p)) : dim.fn)]));
+  const TT = Object.fromEntries(CIDS.map(c => [c, totalAll(c, ok)]));
+  const keys = new Set(); CIDS.forEach(c => A[c].forEach((v, k) => keys.add(k)));
+  const esMarca = S.somDim === 'marca';
+  let rows = dim.hier ? hierRows(A, sumAgg, o => o.tot) : [...keys].map(k => ({k, d: Object.fromEntries(CIDS.map(c => [c, A[c].get(k) || {tot: 0, CMQ: 0, CCU: 0, OTROS: 0}]))}));
+  rows.forEach(r => {
+    if (dim.fld) r._drill = dim.fld[(r.nivel || 1) - 1] + '\u0001' + r.k;
+    else r._drill = S.somDim + '\u0001' + r.k;
+  });
+  if (dim.hier) {}
+  else if (dim.orden) rows.sort((a, b) => dim.orden.indexOf(a.k) - dim.orden.indexOf(b.k));
+  else rows.sort((a, b) => b.d[ACT].tot - a.d[ACT].tot);
+  const emp = r => { const m = D.maps.find(x => x.marca === r.k); return m ? m.empresa : 'CMQ'; };
+  let cols, desc;
+  if (esMarca){
+    desc = 'Share de cada marca sobre el total del mercado (o del segmento elegido arriba). En marcas de la competencia, que suba es una mala noticia (se marca en rojo). Hacé clic en una marca para verla por calibre.';
+ cols = [{lab: 'Marca', l: true, fn: r => r.k === 'TOTAL' ? 'TOTAL' : `<span class="dot" style="background:var(--${emp(r) === 'CMQ' ? 'cmq' : emp(r) === 'CCU' ? 'ccu' : 'otr'})"></span>${esc(r.k)}`, sv: r => r.k},
+      {lab: 'Compañía', l: true, fn: r => r.k === 'TOTAL' ? '' : emp(r), sv: r => emp(r)},
+      {lab: 'HL ' + ACT, fn: r => fHL(r.d[ACT].tot), sv: r => r.d[ACT].tot},
+      ...cols3('Share', (r, c) => div(r.d[c].tot, TT[c].tot), fP, {goodUp: r => emp(r) === 'CMQ'})];
+    rows.forEach(r => { r._cls = ''; });
+    return somWrap(desc, table('tSom', cols, rows, {groups: [['', 3], ['Share de marca (%)', 3], ['Variación (pp)', 2]],
+      total: {k: 'TOTAL', d: TT}, extra: ''}), rows);
+  }
+  desc = S.somDim === 'segmento' || S.somDim === 'calibre'
+    ? `SOM = HL CMQ / HL total dentro de cada ${dim.lab.toLowerCase()}. "Mix" es el peso del ${dim.lab.toLowerCase()} en el mercado. Hacé clic en una fila para ver qué pasó con cada marca.`
+    : dim.hier ? `SOM = HL CMQ / HL total de cerveza. Cada ${dim.lab.split(' › ')[0].toLowerCase()} con su apertura abajo (según la base de clientes actual). Hacé clic en cualquier fila para ver su SOM por segmento y por marca.`
+    : `SOM = HL CMQ / HL total de cerveza en los PDV de cada ${dim.lab.toLowerCase()} (vendedor, supervisor y canal según la base de clientes actual). Hacé clic en una fila para ver su SOM por segmento y por marca.`;
+  cols = [{lab: dim.lab, l: true, fn: r => indent(r) + esc(r.k), sv: r => r.k},
+    {lab: 'HL mercado ' + ACT, fn: r => fHL(r.d[ACT].tot), sv: r => r.d[ACT].tot},
+    {lab: 'HL CMQ', fn: r => fHL(r.d[ACT].CMQ), sv: r => r.d[ACT].CMQ},
+    {lab: 'HL CCU', fn: r => fHL(r.d[ACT].CCU), sv: r => r.d[ACT].CCU},
+    {lab: 'HL Otros', fn: r => fHL(r.d[ACT].OTROS), sv: r => r.d[ACT].OTROS},
+    {lab: 'Mix ' + ACT, fn: r => fP(div(r.d[ACT].tot, TT[ACT].tot)), sv: r => div(r.d[ACT].tot, TT[ACT].tot)},
+    ...cols3('SOM', (r, c) => div(r.d[c].CMQ, r.d[c].tot), fP)];
+  return somWrap(desc, table('tSom', cols, rows, {groups: [['', 6], ['SOM CMQ (%)', 3], ['Variación (pp)', 2]], total: {k: 'TOTAL', d: TT}, nosort: !!dim.hier}), rows);
+}
+function somWrap(desc, tbl){
+  const b = Object.entries(DIMS).map(([k, d]) => `<button data-v="${k}" class="${S.somDim === k ? 'on' : ''}">${d.lab}</button>`).join('');
+  setTimeout(() => document.querySelectorAll('#somDim button').forEach(x => x.onclick = () => { S.somDim = x.dataset.v; render(); }));
+  return avisoUniverso() + `<div class="card"><h2>Share of Market — total cerveza</h2>
+    <div class="tools"><span class="muted">Abrir por:</span><div class="seg" id="somDim">${b}</div></div>
+    <p class="desc">${desc}</p>${tbl}</div>`;
+}
+
+// ---------- DETALLE AL HACER CLIC (Share of Market) ----------
+function drill(spec){
+  const [dim, val] = spec.split('\u0001');
+  const base = pdvMask();
+  const z = {tot: 0, CMQ: 0, CCU: 0, OTROS: 0};
+  const empOf = k => (D.maps.find(x => x.marca === k) || {}).empresa || 'OTROS';
+  const dot = e => `<span class="dot" style="background:var(--${e === 'CMQ' ? 'cmq' : e === 'CCU' ? 'ccu' : 'otr'})"></span>`;
+  const pick = (A, k) => Object.fromEntries(CIDS.map(c => [c, A[c].get(k) || z]));
+  let titulo, html = '';
+  const shareTbl = (id, lab, rows, denom, opts = {}) => table(id, [
+    {lab, l: true, fn: r => (opts.dot ? dot(empOf(r.k)) : '') + esc(r.k), sv: r => r.k},
+    {lab: 'HL ' + ACT, fn: r => fHL(r.d[ACT].tot ?? r.d[ACT]), sv: r => r.d[ACT].tot ?? r.d[ACT]},
+    ...cols3(opts.lab || 'Share', (r, c) => denom(r, c), fP, {goodUp: r => !opts.dot || empOf(r.k) === 'CMQ'})], rows,
+    {groups: [['', 2], [opts.grp || 'Share (%)', 3], ['Variación (pp)', 2]]});
+  if (['sup', 'ven', 'canal', 'sub'].includes(dim)){
+    const ok = base.map((v, i) => v && P[i][dim] === val ? 1 : 0);
+    const nom = {sup: 'Supervisor', ven: 'Promotor', canal: 'Canal', sub: 'Subcanal'}[dim];
+    titulo = `${nom}: ${val}`;
+    const TT = Object.fromEntries(CIDS.map(c => [c, totalAll(c, ok)]));
+    const sA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, (p, m) => m.segmento)]));
+    const segs = SEGMENTOS.filter(s => CIDS.some(c => sA[c].has(s))).map(s => ({k: s, d: pick(sA, s)}));
+    const tSeg = table('tDrSeg', [{lab: 'Segmento', l: true, fn: r => esc(r.k)},
+      {lab: 'HL ' + ACT, fn: r => fHL(r.d[ACT].tot)}, {lab: 'Mix ' + ACT, fn: r => fP(div(r.d[ACT].tot, TT[ACT].tot))},
+      ...cols3('SOM', (r, c) => div(r.d[c].CMQ, r.d[c].tot), fP)], segs,
+      {groups: [['', 3], ['SOM CMQ dentro del segmento', 3], ['Variación (pp)', 2]], total: {k: 'TOTAL', d: TT}, nosort: true});
+    const mA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, (p, m) => m.marca)]));
+    const keys = new Set(); CIDS.forEach(c => mA[c].forEach((v, k) => keys.add(k)));
+    const mrows = [...keys].map(k => ({k, d: pick(mA, k)})).sort((a, b) => b.d[ACT].tot - a.d[ACT].tot);
+    const tMar = shareTbl('tDrMar', 'Marca', mrows, (r, c) => div(r.d[c].tot, TT[c].tot), {dot: true, grp: 'Share de marca sobre su mercado (%)'});
+    const pdvs = ok.reduce((s, v) => s + v, 0);
+    html = `<div class="kpis">${kpi('SOM CMQ', Object.fromEntries(CIDS.map(c => [c, div(TT[c].CMQ, TT[c].tot)])), fP, true)}
+      ${kpi('Mercado (HL)', Object.fromEntries(CIDS.map(c => [c, TT[c].tot])), fHL, false)}</div>
+      <p class="muted" style="font-size:13px">${fHL(pdvs)} PDV según la base de clientes actual${S.seg ? ' · mercado filtrado a ' + esc(S.seg) : ''}.</p>
+      <h3 style="font-size:15px;margin:14px 0 8px">SOM por segmento</h3>${tSeg}
+      <h3 style="font-size:15px;margin:18px 0 8px">Share por marca</h3>${tMar}`;
+  } else if (dim === 'marca'){
+    titulo = `Marca: ${val} — apertura por calibre`;
+    const mA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, base, (p, m) => m.marca === val ? m.calibre : null)]));
+    const cA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, base, (p, m) => m.calibre)]));
+    const keys = new Set(); CIDS.forEach(c => mA[c].forEach((v, k) => keys.add(k)));
+    const rows = [...keys].map(k => ({k, d: pick(mA, k), cal: pick(cA, k)})).sort((a, b) => b.d[ACT].tot - a.d[ACT].tot);
+    const tot = Object.fromEntries(CIDS.map(c => [c, [...mA[c].values()].reduce((s, o) => s + o.tot, 0)]));
+    html = `<p class="desc">HL de ${esc(val)} en cada calibre, cuánto pesa cada calibre dentro de la marca y qué share tiene la marca dentro del mercado de ese calibre.</p>` +
+      table('tDrCal', [{lab: 'Calibre', l: true, fn: r => esc(r.k)},
+        ...CIDS.map((c, j) => ({lab: (j === 0 ? 'HL ' : '') + c, bl: j === 0, fn: r => fHL(r.d[c].tot)})),
+        {lab: 'Δ HL vs ' + CA, fn: r => fPct(r.d[ACT].tot, r.d[CA].tot)},
+        ...CIDS.map((c, j) => ({lab: (j === 0 ? 'Mix ' : '') + c, bl: j === 0, fn: r => fP(div(r.d[c].tot, tot[c]))})),
+        ...cols3('Share', (r, c) => div(r.d[c].tot, r.cal[c].tot), fP, {goodUp: () => empOf(val) === 'CMQ'}).map((x, i) => i === 0 ? {...x, bl: true} : x)],
+        rows, {groups: [['', 1], ['HL de la marca', 4], ['Peso del calibre en la marca', 3], ['Share de la marca en el calibre', 5]], nosort: true});
+  } else if (dim === 'calibre' || dim === 'segmento'){
+    const f = dim === 'calibre' ? 'calibre' : 'segmento';
+    titulo = `${dim === 'calibre' ? 'Calibre' : 'Segmento'}: ${val} — apertura por marca`;
+    const mA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, base, (p, m) => m[f] === val ? m.marca : null)]));
+    const T = Object.fromEntries(CIDS.map(c => [c, [...mA[c].values()].reduce((s, o) => s + o.tot, 0)]));
+    const keys = new Set(); CIDS.forEach(c => mA[c].forEach((v, k) => keys.add(k)));
+    const rows = [...keys].map(k => ({k, d: pick(mA, k)})).sort((a, b) => b.d[ACT].tot - a.d[ACT].tot);
+    html = `<p class="desc">Share de cada marca dentro del ${dim === 'calibre' ? 'calibre' : 'segmento'} ${esc(val)}. En marcas de la competencia, que suba se marca en rojo.</p>` +
+      table('tDrMar2', [{lab: 'Marca', l: true, fn: r => dot(empOf(r.k)) + esc(r.k)},
+        {lab: 'Compañía', l: true, fn: r => empOf(r.k)},
+        ...CIDS.map((c, j) => ({lab: (j === 0 ? 'HL ' : '') + c, bl: j === 0, fn: r => fHL(r.d[c].tot)})),
+        ...cols3('Share', (r, c) => div(r.d[c].tot, T[c]), fP, {goodUp: r => empOf(r.k) === 'CMQ'}).map((x, i) => i === 0 ? {...x, bl: true} : x)],
+        rows, {groups: [['', 2], ['HL', 3], ['Share dentro del ' + dim + ' (%)', 3], ['Variación (pp)', 2]], nosort: true});
+  } else return;
+  $('#dlgT').textContent = titulo;
+  $('#dlgB').innerHTML = html;
+  if (!$('#dlg').open) $('#dlg').showModal();
+}
+
+// ---------- SHARE OF SEGMENT ----------
+function rSos(){
+  const ok = pdvMask();
+  const segA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, (p, m) => m.segmento)]));
+  const TT = Object.fromEntries(CIDS.map(c => [c, totalAll(c, ok)]));
+  const segs = SEGMENTOS.filter(s => CIDS.some(c => segA[c].has(s)));
+  const z = {tot: 0, CMQ: 0, CCU: 0, OTROS: 0};
+  const rows = segs.map(s => ({k: s, d: Object.fromEntries(CIDS.map(c => [c, segA[c].get(s) || z]))}));
+  const t1 = table('tMix', [{lab: 'Segmento', l: true, fn: r => esc(r.k), sv: r => SEGMENTOS.indexOf(r.k)},
+    {lab: 'HL ' + ACT, fn: r => fHL(r.d[ACT].tot), sv: r => r.d[ACT].tot},
+    ...cols3('Mix', (r, c) => div(r.d[c].tot, TT[c].tot), fP, {goodUp: () => true}),
+    ...cols3('SOM', (r, c) => div(r.d[c].CMQ, r.d[c].tot), fP).map((x, i) => i === 0 ? {...x, bl: true} : x)],
+    rows, {groups: [['', 2], ['Mix del segmento (% del total cerveza)', 5], ['Share CMQ dentro del segmento', 5]]});
+  // marcas dentro del segmento elegido
+  if (!segs.includes(S.sosSeg)) S.sosSeg = segs.find(s => s !== 'SIN SEGMENTO') || segs[0];
+  const mA = Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, (p, m) => m.segmento === S.sosSeg ? m.marca : null)]));
+  const segT = Object.fromEntries(CIDS.map(c => [c, (segA[c].get(S.sosSeg) || z).tot]));
+  const keys = new Set(); CIDS.forEach(c => mA[c].forEach((v, k) => keys.add(k)));
+  const emp = k => (D.maps.find(x => x.marca === k) || {}).empresa || 'OTROS';
+  const rows2 = [...keys].map(k => ({k, d: Object.fromEntries(CIDS.map(c => [c, (mA[c].get(k) || z).tot]))})).sort((a, b) => b.d[ACT] - a.d[ACT]);
+  const t2 = table('tSosMarca', [{lab: 'Marca', l: true, fn: r => `<span class="dot" style="background:var(--${emp(r.k) === 'CMQ' ? 'cmq' : emp(r.k) === 'CCU' ? 'ccu' : 'otr'})"></span>${esc(r.k)}`, sv: r => r.k},
+    {lab: 'Compañía', l: true, fn: r => emp(r.k), sv: r => emp(r.k)},
+    {lab: 'HL ' + ACT, fn: r => fHL(r.d[ACT]), sv: r => r.d[ACT]},
+    ...cols3('Share', (r, c) => div(r.d[c], segT[c]), fP, {goodUp: r => emp(r.k) === 'CMQ'})],
+    rows2, {groups: [['', 3], ['Share dentro del segmento (%)', 3], ['Variación (pp)', 2]]});
+  setTimeout(() => { const s = $('#sosSeg'); if (s) s.onchange = e => { S.sosSeg = e.target.value; render(); }; });
+  return avisoUniverso() + `<div class="card"><h2>Share of Segment — mix y share por segmento</h2>
+    <p class="desc">Peso de cada segmento en el total cerveza (mix) y participación de CMQ dentro de cada uno, contra el censo anterior y el año anterior.</p>${t1}</div>
+    <div class="card"><h2>Apertura por marca dentro del segmento</h2>
+    <div class="tools"><span class="muted">Segmento:</span><select id="sosSeg">${segs.map(s => `<option ${s === S.sosSeg ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+    <p class="desc">Share de cada marca sobre el volumen del segmento.</p>${t2}</div>`;
+}
+
+// ---------- DISTRIBUCIÓN ----------
+function targetsList(){
+  const marcas = [...new Set(D.maps.filter(m => m.incluir).map(m => m.marca))].sort();
+  return [['EMP:CMQ', 'Total cervezas CMQ'], ['EMP:CCU', 'Total cervezas CCU'],
+    ...SEGMENTOS.filter(s => s !== 'SIN SEGMENTO').map(s => ['SEG:' + s + '|CMQ', 'Segmento ' + s + ' (CMQ)']),
+    ...marcas.map(m => ['MAR:' + m, 'Marca ' + m])];
+}
+function rDist(){
+  const ok = pdvMask(), met = S.dist;
+  const metLab = met === 'DN' ? 'Distribución física' : 'Distribución ponderada';
+  const metDesc = met === 'DN'
+    ? 'Distribución física = % de los PDV que venden cerveza (con volumen en el censo) donde la marca está presente.'
+    : 'Distribución ponderada = volumen total de cerveza de los PDV donde la marca está presente, sobre el volumen total de cerveza del universo. Mide qué tan "pesados" son los PDV donde estamos.';
+  // 1) por segmento y marca
+  const marcas = [...new Set(D.maps.filter(m => m.incluir && (!S.seg || m.segmento === S.seg)).map(m => m.marca))];
+  const empOf = k => (D.maps.find(x => x.marca === k) || {}).empresa || 'OTROS';
+  const segOf = k => (D.maps.find(x => x.marca === k) || {}).segmento || '';
+  const filas = [];
+  filas.push({k: 'Total cervezas CMQ', spec: 'EMP:CMQ', emp: 'CMQ', nivel: 0});
+  filas.push({k: 'Total cervezas CCU', spec: 'EMP:CCU', emp: 'CCU', nivel: 0});
+  SEGMENTOS.filter(s => s !== 'SIN SEGMENTO' && (!S.seg || s === S.seg)).forEach(s => {
+    filas.push({k: s + ' — CMQ', spec: 'SEG:' + s + '|CMQ', emp: 'CMQ', nivel: 1, seg: s});
+    filas.push({k: s + ' — CCU', spec: 'SEG:' + s + '|CCU', emp: 'CCU', nivel: 1, seg: s});
+    marcas.filter(m => segOf(m) === s).sort((a, b) => (empOf(a) > empOf(b) ? 1 : empOf(a) < empOf(b) ? -1 : a < b ? -1 : 1))
+      .forEach(m => filas.push({k: m, spec: 'MAR:' + m, emp: empOf(m), nivel: 2, seg: s}));
+  });
+  const cache = {};
+  filas.forEach(f => { f.d = Object.fromEntries(CIDS.map(c => [c, (distrib(c, ok, targetFn(f.spec), null).get('TOTAL') || {})])); f._cls = f.nivel === 0 ? 'tot' : f.nivel === 1 ? '' : 'sub'; });
+  const filas2 = filas.filter(f => CIDS.some(c => (f.d[c].nPres || 0) > 0) || f.nivel < 2);
+  const t1 = table('tDist1', [{lab: 'Segmento / marca', l: true, fn: r => (r.nivel === 2 ? '&nbsp;&nbsp;&nbsp;' : '') + `<span class="dot" style="background:var(--${r.emp === 'CMQ' ? 'cmq' : r.emp === 'CCU' ? 'ccu' : 'otr'})"></span>${esc(r.k)}`},
+    {lab: 'PDV con marca ' + ACT, fn: r => fHL(r.d[ACT].nPres)},
+    ...cols3(met, (r, c) => r.d[c][met], fP, {goodUp: r => r.emp === 'CMQ'})], filas2,
+    {groups: [['', 2], [metLab + ' (%)', 3], ['Variación (pp)', 2]]});
+  // 2) por supervisor/promotor/canal/subcanal (target elegible)
+  const dims = {supven: 'Supervisor › Promotor', sup: 'Supervisor', ven: 'Promotor', canalsub: 'Canal › Subcanal', canal: 'Canal', sub: 'Subcanal'};
+  if (!dims[S.distDim]) S.distDim = 'supven';
+  const dd = DIMS[S.distDim];
+  const gfn = dd.hier ? (p => dd.hier[0](p) + '||' + dd.hier[1](p)) : dd.fn;
+  const pred = targetFn(S.distTarget);
+  const G = Object.fromEntries(CIDS.map(c => [c, distrib(c, ok, pred, gfn)]));
+  const keys = new Set(); CIDS.forEach(c => G[c].forEach((v, k) => keys.add(k)));
+  const rows2 = dd.hier ? hierRows(G, sumDist, o => o.vol || 0)
+    : [...keys].map(k => ({k, d: Object.fromEntries(CIDS.map(c => [c, G[c].get(k) || {}]))})).sort((a, b) => (b.d[ACT].vol || 0) - (a.d[ACT].vol || 0));
+  const tot = {k: 'TOTAL', d: Object.fromEntries(CIDS.map(c => [c, distrib(c, ok, pred, null).get('TOTAL') || {}]))};
+  const t2 = table('tDist2', [{lab: dims[S.distDim], l: true, fn: r => indent(r) + esc(r.k), sv: r => r.k},
+    {lab: 'PDV ' + ACT, fn: r => fHL(r.d[ACT].n), sv: r => r.d[ACT].n || 0},
+    {lab: 'PDV con marca', fn: r => fHL(r.d[ACT].nPres), sv: r => r.d[ACT].nPres || 0},
+    ...cols3(met, (r, c) => r.d[c][met], fP)], rows2, {groups: [['', 3], [metLab + ' (%)', 3], ['Variación (pp)', 2]], total: tot, nosort: !!dd.hier});
+  setTimeout(() => {
+    document.querySelectorAll('#distMet button').forEach(x => x.onclick = () => { S.dist = x.dataset.v; render(); });
+    document.querySelectorAll('#distDim button').forEach(x => x.onclick = () => { S.distDim = x.dataset.v; render(); });
+    const t = $('#distTg'); if (t) t.onchange = e => { S.distTarget = e.target.value; render(); };
+  });
+  return avisoUniverso() + `<div class="card"><div class="tools"><div class="seg" id="distMet">
+      <button data-v="DN" class="${met === 'DN' ? 'on' : ''}">Distribución física</button>
+      <button data-v="DP" class="${met === 'DP' ? 'on' : ''}">Distribución ponderada</button></div></div>
+    <p class="desc">${metDesc}</p></div>
+    <div class="card"><h2>${metLab} por segmento y marca</h2>${t1}</div>
+    <div class="card"><h2>${metLab} por ${dims[S.distDim].toLowerCase()}</h2><p class="desc">Universo = PDV con volumen de cerveza en cada censo, según su supervisor, promotor y canal actuales.</p>
+      <div class="tools"><div class="seg" id="distDim">${Object.entries(dims).map(([k, l]) => `<button data-v="${k}" class="${S.distDim === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <span class="muted">Medir:</span><select id="distTg">${targetsList().map(([v, l]) => `<option value="${esc(v)}" ${v === S.distTarget ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+      ${t2}</div>`;
+}
+
+// ---------- CONCLUSIONES ----------
+function rOpo(){
+  const ok = pdvMask();
+  const z = {tot: 0, CMQ: 0, CCU: 0, OTROS: 0};
+  const by = (fn) => Object.fromEntries(CIDS.map(c => [c, aggregate(c, ok, fn)]));
+  const pp = v => v == null ? '–' : (v >= 0 ? '+' : '') + nf1.format(v * 100) + ' pp';
+  const linea = (k, d) => {
+    const s = div(d[ACT].CMQ, d[ACT].tot), sCA = div(d[CA].CMQ, d[CA].tot), sAA = div(d[AA].CMQ, d[AA].tot);
+    return {k, som: s, dCA: sub(s, sCA), dAA: sub(s, sAA), comp: d[ACT].CCU + d[ACT].OTROS, tot: d[ACT].tot, mix: 0};
+  };
+  // segmentos
+  const sA = by((p, m) => m.segmento);
+  const segs = SEGMENTOS.filter(s => s !== 'SIN SEGMENTO' && sA[ACT].has(s)).map(s => linea(s, Object.fromEntries(CIDS.map(c => [c, sA[c].get(s) || z])))).sort((a, b) => b.comp - a.comp);
+  // subcanales
+  const cA = by(p => p.sub);
+  const subs = [...cA[ACT].keys()].map(s => linea(s, Object.fromEntries(CIDS.map(c => [c, cA[c].get(s) || z])))).filter(x => x.tot >= 30).sort((a, b) => b.comp - a.comp);
+  // marcas vs competencia por segmento
+  const mA = by((p, m) => m.segmento + '|' + m.marca);
+  const tSeg = by((p, m) => m.segmento);
+  const empOf = k => (D.maps.find(x => x.marca === k) || {}).empresa || 'OTROS';
+  const marcas = [];
+  for (const k of new Set([...mA[ACT].keys(), ...mA[CA].keys()])){
+    const [seg, mar] = k.split('|'); if (seg === 'SIN SEGMENTO') continue;
+    const sh = c => div((mA[c].get(k) || z).tot, (tSeg[c].get(seg) || z).tot);
+    marcas.push({seg, mar, emp: empOf(mar), sh: sh(ACT), dCA: sub(sh(ACT), sh(CA)), dAA: sub(sh(ACT), sh(AA)), hl: (mA[ACT].get(k) || z).tot});
+  }
+  const compSube = marcas.filter(m => m.emp !== 'CMQ' && m.dCA > 0.005).sort((a, b) => b.dCA - a.dCA).slice(0, 6);
+  const cmqBaja = marcas.filter(m => m.emp === 'CMQ' && m.dCA < -0.005).sort((a, b) => a.dCA - b.dCA).slice(0, 6);
+  const cmqSube = marcas.filter(m => m.emp === 'CMQ' && m.dCA > 0.005).sort((a, b) => b.dCA - a.dCA).slice(0, 4);
+  // clientes
+  const cli = clientesCalc(ok).filter(c => c.comp > 0).sort((a, b) => b.comp - a.comp);
+  const top = cli.slice(0, 10);
+  const compTot = cli.reduce((s, c) => s + c.comp, 0), compTop20 = cli.slice(0, Math.ceil(cli.length * .2)).reduce((s, c) => s + c.comp, 0);
+  const li = arr => arr.map(x => `<li>${x}</li>`).join('');
+  let h = avisoUniverso() + notasEquipo() + `<div class="note" style="background:var(--sel);color:var(--ink)">Estas conclusiones se arman solas con los filtros de arriba (podés filtrar por supervisor o canal y se recalculan). Usalas como punto de partida para el documento del PDA.</div>`;
+  h += `<div class="row"><div class="card"><h2>Oportunidades por segmento</h2><p class="desc">Ordenado por HL de competencia (lo que queda por ganar).</p><ul class="concl">${li(segs.map(s =>
+    `<b>${esc(s.k)}</b>: SOM ${fP(s.som)} (${pp(s.dCA)} vs ${CA}, ${pp(s.dAA)} vs ${AA}). Competencia: <b>${fHL(s.comp)} HL</b>.`))}</ul></div>
+    <div class="card"><h2>Oportunidades por canal</h2><p class="desc">Subcanales con más de 30 HL de mercado, ordenados por HL de competencia.</p><ul class="concl">${li(subs.slice(0, 8).map(s =>
+    `<b>${esc(s.k)}</b>: SOM ${fP(s.som)} (${pp(s.dCA)} vs ${CA}). Competencia: <b>${fHL(s.comp)} HL</b>.`))}</ul></div></div>`;
+  h += `<div class="row"><div class="card"><h2>Marcas vs competencia</h2><p class="desc">Share dentro de su segmento, variación vs ${CNAME[CA]}.</p>
+    <p><b>Competencia que gana terreno</b></p><ul class="concl">${li(compSube.map(m => `${esc(m.mar)} (${m.emp}) en ${m.seg}: ${fP(m.sh)} del segmento, <span class="down">${pp(m.dCA)}</span>`)) || '<li class="muted">Ninguna marca de la competencia creció más de 0,5 pp.</li>'}</ul>
+    <p><b>Marcas CMQ que pierden share</b></p><ul class="concl">${li(cmqBaja.map(m => `${esc(m.mar)} en ${m.seg}: ${fP(m.sh)}, <span class="down">${pp(m.dCA)}</span>`)) || '<li class="muted">Ninguna marca CMQ cayó más de 0,5 pp.</li>'}</ul>
+    <p><b>Marcas CMQ que ganan share</b></p><ul class="concl">${li(cmqSube.map(m => `${esc(m.mar)} en ${m.seg}: ${fP(m.sh)}, <span class="up">${pp(m.dCA)}</span>`)) || '<li class="muted">–</li>'}</ul></div>
+    <div class="card"><h2>Clientes con grandes oportunidades</h2><p class="desc">El 20% de los PDV con más competencia concentra <b>${fP(div(compTop20, compTot))}</b> del volumen de competencia (${fHL(compTop20)} de ${fHL(compTot)} HL). Top 10:</p>
+    <ul class="concl">${li(top.map(c => `<a href="#" onclick="verPdv(${c.i});return false">${esc(P[c.i].rs)}</a> <span class="muted">(${esc(P[c.i].ven)})</span>: ${fHL(c.comp)} HL de competencia, SOM ${fP(c.som)}`))}</ul>
+    <p class="muted">La lista completa está más abajo, en el universo del PDA.</p></div></div>`;
+  h += pdaUniverso(ok) + planesAccion();
+  return h;
+}
+
+// notas escritas por el equipo (se guardan en el navegador y viajan dentro del HTML al descargarlo)
+const NOTAS = [['general', 'Conclusiones generales de la plaza'], ['segmento', 'Oportunidades por segmento'], ['canal', 'Oportunidades por canal'],
+  ['marcas', 'Oportunidades por marcas vs competencia'], ['clientes', 'Clientes con grandes oportunidades'], ['pda', 'Universo y planes de acción (PDA)']];
+function notasEquipo(){
+  D.notas = D.notas || {};
+  setTimeout(() => { const b = $('#dlHtml2'); if (b) b.onclick = descargarHtml; });
+  setTimeout(() => document.querySelectorAll('textarea[data-nota]').forEach(el => {
+    el.oninput = () => { D.notas[el.dataset.nota] = el.value; clearTimeout(el._t); el._t = setTimeout(() => { saveCfg(); if (!CLOUD) $('#notaEst').textContent = 'Guardado en este navegador'; }, 400); };
+  }));
+  return `<div class="card"><h2>Nuestras conclusiones</h2>
+    <p class="desc">${CLOUD ? 'Escribí acá el análisis del equipo. Se guarda solo en la nube y lo ven todos al instante, firmado con tu nombre.' : 'Escribí acá el análisis del equipo. Se guarda solo en este navegador; para que lo vean los demás, descargá el HTML con el botón de abajo y compartí ese archivo.'}</p>
+    <div class="notas">${NOTAS.map(([k, l]) => `<div class="f"><label style="font-size:13px;color:var(--ink2);font-weight:600">${l}</label>
+      <textarea data-nota="${k}" rows="4" placeholder="Escribí acá…">${esc(D.notas[k] || '')}</textarea>${CLOUD ? `<div class="firma">${firmaTxt(NOTA_META[k])}</div>` : ''}</div>`).join('')}</div>
+    <div class="tools" style="margin-top:8px">${CLOUD ? '<span class="muted nubeEst" style="font-size:12px"></span>' : '<button class="btn pri" id="dlHtml2">Descargar HTML con las notas</button><span class="muted" id="notaEst" style="font-size:12px"></span>'}</div></div>`;
+}
+
+// ---------- UNIVERSO DEL PDA Y PLANES DE ACCIÓN ----------
+S.pdaCfg = S.pdaCfg || {minComp: 5, maxSom: 60, caida: 10, minHL: 2};
+const PDA_TIPOS = {Conquistar: 'Mucho volumen de competencia y SOM bajo', Recuperar: 'SOM que cayó fuerte vs el censo anterior', Distribuir: 'Compran el segmento a la competencia y no tienen marca CMQ en ese segmento'};
+const PDA_SEGS = ['VALUE', 'CORE', 'CORE PLUS', 'PREMIUM'];
+function pdaCalc(ok){
+  const c = S.pdaCfg, tot = {}, cmq = {};
+  for (const x of [ACT, CA]){ tot[x] = pdvTot(x, ok); cmq[x] = pdvTarget(x, ok, m => m.empresa === 'CMQ'); }
+  const sc = {}, sq = {};
+  PDA_SEGS.forEach(s => { sc[s] = pdvTarget(ACT, ok, m => m.segmento === s && m.empresa !== 'CMQ'); sq[s] = pdvTarget(ACT, ok, m => m.segmento === s && m.empresa === 'CMQ'); });
+  const out = [];
+  for (let i = 0; i < P.length; i++){
+    if (!ok[i] || !(tot[ACT][i] > 0)) continue;
+    const t = tot[ACT][i], q = cmq[ACT][i], som = q / t, somCA = tot[CA][i] > 0 ? cmq[CA][i] / tot[CA][i] : null, comp = t - q;
+    const tipos = [], dist = [];
+    if (comp >= c.minComp && som <= c.maxSom / 100) tipos.push('Conquistar');
+    if (somCA != null && som - somCA <= -c.caida / 100 && t >= c.minHL) tipos.push('Recuperar');
+    PDA_SEGS.forEach(s => { if (sc[s][i] > 0.0001 && !(sq[s][i] > 0)) dist.push(s); });
+    if (dist.length) tipos.push('Distribuir');
+    if (tipos.length) out.push({i, tot: t, cmq: q, comp, som, somCA, dCA: somCA == null ? null : som - somCA, tipos, dist, compSeg: Object.fromEntries(dist.map(s => [s, sc[s][i]]))});
+  }
+  return out.sort((a, b) => b.comp - a.comp);
+}
+function pdaUniverso(ok){
+  const lista = pdaCalc(ok), c = S.pdaCfg;
+  const resumen = Object.keys(PDA_TIPOS).map(t => { const l = lista.filter(r => r.tipos.includes(t)); return {t, n: l.length, comp: l.reduce((s, r) => s + r.comp, 0)}; });
+  const porSup = {};
+  lista.forEach(r => { const s = P[r.i].sup; const o = porSup[s] = porSup[s] || {k: s, n: 0, comp: 0, Conquistar: 0, Recuperar: 0, Distribuir: 0}; o.n++; o.comp += r.comp; r.tipos.forEach(t => o[t]++); });
+  const supRows = Object.values(porSup).sort((a, b) => b.comp - a.comp);
+  const badge = t => `<span class="pill" style="${t === 'Recuperar' ? 'background:var(--warnbg);color:var(--warnink)' : t === 'Conquistar' ? 'background:var(--sel);color:var(--brand2)' : ''}">${t}</span>`;
+  const rows = lista.map(r => ({...r, _click: r.i, _cls: 'click'}));
+  setTimeout(() => {
+    [['pdaMinComp', 'minComp'], ['pdaMaxSom', 'maxSom'], ['pdaCaida', 'caida']].forEach(([id, k]) => { const el = $('#' + id); if (el) el.onchange = e => { S.pdaCfg[k] = Math.max(0, +e.target.value || 0); render(); }; });
+  });
+  return `<div class="card"><h2>1. Universo de clientes del PDA</h2>
+    <p class="desc">Clientes donde enfocar el plan, armados con los resultados de ${CNAME[ACT]} y los filtros de arriba. Un cliente puede tener más de un motivo. Ajustá los criterios y la lista se recalcula.</p>
+    <div class="tools">
+      <div class="f"><label>Conquistar: HL competencia ≥</label><input type="number" id="pdaMinComp" value="${c.minComp}" min="0" style="width:90px"></div>
+      <div class="f"><label>…y SOM ≤ (%)</label><input type="number" id="pdaMaxSom" value="${c.maxSom}" min="0" max="100" step="5" style="width:90px"></div>
+      <div class="f"><label>Recuperar: cayó ≥ (pp vs ${CA})</label><input type="number" id="pdaCaida" value="${c.caida}" min="0" style="width:90px"></div>
+    </div>
+    <div class="kpis">${resumen.map(r => `<div class="kpi"><div class="lab">${badge(r.t)} ${esc(PDA_TIPOS[r.t])}</div><div class="val">${fHL(r.n)} <small class="muted" style="font-size:13px">PDV</small></div><div class="cmp"><span>${fHL(r.comp)} HL de competencia en juego</span></div></div>`).join('')}
+      <div class="kpi"><div class="lab"><b>Universo total del PDA</b></div><div class="val">${fHL(lista.length)} <small class="muted" style="font-size:13px">PDV</small></div><div class="cmp"><span>${fHL(lista.reduce((s, r) => s + r.comp, 0))} HL de competencia</span></div></div></div>
+    <h3 style="font-size:15px;margin:6px 0 8px">Por supervisor</h3>
+    ${table('tPdaSup', [{lab: 'Supervisor', l: true, fn: r => esc(r.k), sv: r => r.k}, {lab: 'PDV en el PDA', fn: r => fHL(r.n), sv: r => r.n},
+      {lab: 'Conquistar', fn: r => fHL(r.Conquistar), sv: r => r.Conquistar}, {lab: 'Recuperar', fn: r => fHL(r.Recuperar), sv: r => r.Recuperar},
+      {lab: 'Distribuir', fn: r => fHL(r.Distribuir), sv: r => r.Distribuir}, {lab: 'HL competencia', fn: r => fHL(r.comp), sv: r => r.comp}], supRows)}
+    <h3 style="font-size:15px;margin:16px 0 8px">Clientes del universo</h3>
+    ${table('tPdaCli', [{lab: 'Cliente', l: true, fn: r => esc(P[r.i].rs) + `<br><span class="muted" style="font-size:11px">${P[r.i].id}</span>`, sv: r => P[r.i].rs},
+      {lab: 'Supervisor', l: true, fn: r => esc(P[r.i].sup), sv: r => P[r.i].sup}, {lab: 'Promotor', l: true, fn: r => esc(P[r.i].ven), sv: r => P[r.i].ven},
+      {lab: 'Subcanal', l: true, fn: r => esc(P[r.i].sub), sv: r => P[r.i].sub},
+      {lab: 'HL mercado', bl: true, fn: r => fHL(r.tot), sv: r => r.tot}, {lab: 'HL competencia', fn: r => `<b>${fHL(r.comp)}</b>`, sv: r => r.comp},
+      {lab: 'SOM ' + ACT, fn: r => fP(r.som), sv: r => r.som}, {lab: 'Δ vs ' + CA, fn: r => fPP(r.dCA), sv: r => r.dCA ?? -9},
+      {lab: 'Motivo', l: true, bl: true, fn: r => r.tipos.map(badge).join(' '), sv: r => r.tipos.join()},
+      {lab: 'Distribuir en', l: true, fn: r => r.dist.map(s => esc(s)).join(', '), sv: r => r.dist.join()}], rows, {extra: `<span class="muted">${fHL(rows.length)} clientes · clic para ver el detalle por marca</span>`})}</div>`;
+}
+// indicadores de seguimiento: SOM total / de un segmento, distribución física o ponderada de una marca, total o de un supervisor
+function indicador(ind, cid){
+  const segBak = S.seg; S.seg = '';
+  try {
+    const ok = new Uint8Array(P.length);
+    P.forEach((p, i) => { if (!ind.sup || p.sup === ind.sup) ok[i] = 1; });
+    if (ind.met === 'SOM'){
+      let t = 0, q = 0; const f = F[cid];
+      const seg = ind.obj && ind.obj.startsWith('SEG:') ? ind.obj.slice(4) : null;
+      for (let i = 0; i < f.n; i++){
+        if (!ok[f.p[i]]) continue; const m = D.maps[f.m[i]]; if (!m.incluir || (seg && m.segmento !== seg)) continue;
+        t += f.v[i]; if (m.empresa === 'CMQ') q += f.v[i];
+      }
+      return div(q, t);
+    }
+    const d = distrib(cid, ok, targetFn(ind.obj || 'EMP:CMQ'), null).get('TOTAL') || {};
+    return ind.met === 'DF' ? d.DN : d.DP;
+  } finally { S.seg = segBak; }
+}
+function indLabel(ind){
+  const obj = !ind.obj || ind.obj === 'TOTAL' ? 'total cerveza' : ind.obj.startsWith('SEG:') ? 'segmento ' + ind.obj.slice(4) : ind.obj.startsWith('MAR:') ? ind.obj.slice(4) : ind.obj === 'EMP:CMQ' ? 'total CMQ' : ind.obj;
+  return `${ind.met === 'SOM' ? 'SOM' : ind.met === 'DF' ? 'Dist. física' : 'Dist. ponderada'} ${obj}${ind.sup ? ' · ' + ind.sup : ''}`;
+}
+function univClientes(u, ok){
+  if (!u) return [];
+  const l = pdaCalc(ok);
+  if (u.tipo === 'CONQ') return l.filter(r => r.tipos.includes('Conquistar')).map(r => r.i);
+  if (u.tipo === 'REC') return l.filter(r => r.tipos.includes('Recuperar') && (!u.sup || P[r.i].sup === u.sup)).map(r => r.i);
+  if (u.tipo === 'DISTSEG') return l.filter(r => r.dist.includes(u.seg)).map(r => r.i);
+  if (u.tipo === 'DISTMAR'){
+    const comp = pdvTarget(ACT, ok, m => m.segmento === u.seg && m.empresa !== 'CMQ'), mar = pdvTarget(ACT, ok, m => m.marca === u.marca);
+    const tot = pdvTot(ACT, ok); const r = [];
+    for (let i = 0; i < P.length; i++) if (ok[i] && tot[i] > 0 && comp[i] > 0 && !(mar[i] > 0)) r.push(i);
+    return r.sort((a, b) => comp[b] - comp[a]);
+  }
+  if (u.tipo === 'SEG'){
+    const comp = pdvTarget(ACT, ok, m => m.segmento === u.seg && m.empresa !== 'CMQ'); const r = [];
+    for (let i = 0; i < P.length; i++) if (ok[i] && comp[i] >= 1) r.push(i);
+    return r.sort((a, b) => comp[b] - comp[a]);
+  }
+  return [];
+}
+function planesPropuestos(){
+  const all = new Uint8Array(P.length).fill(1), out = [];
+  const pp = v => v == null ? '–' : (v >= 0 ? '+' : '') + nf1.format(v * 100) + ' pp';
+  // 1) segmentos con SOM bajo o en baja
+  for (const seg of PDA_SEGS){
+    const ind = {met: 'SOM', obj: 'SEG:' + seg, sup: ''}, v = indicador(ind, ACT), vCA = indicador(ind, CA);
+    if (v == null || (v >= 0.85 && (vCA == null || v >= vCA))) continue;
+    const n = univClientes({tipo: 'SEG', seg}, all).length;
+    out.push({titulo: `Subir el SOM de ${seg}`, detalle: `Hoy ${fP(v)} (${pp(v - (vCA ?? v))} vs ${CA}). Trabajar los ${fHL(n)} PDV que le compran ${seg} a la competencia: precio/promo y exhibición de las marcas CMQ del segmento.`,
+      ind, meta: Math.min(1, v + 0.03), univ: {tipo: 'SEG', seg}, n});
+  }
+  // 2) distribución de marcas CMQ donde la competencia del segmento ya vende
+  for (const [marca, seg] of [['STELLA ARTOIS', 'PREMIUM'], ['ANDES ORIGEN', 'CORE PLUS'], ['MICHELOB', 'CORE PLUS'], ['1890 + BAJO CERO', 'VALUE'], ['BUDWEISER', 'CORE']]){
+    if (!D.maps.some(m => m.marca === marca)) continue;
+    const ids = univClientes({tipo: 'DISTMAR', marca, seg}, all); if (ids.length < 10) continue;
+    const ind = {met: 'DF', obj: 'MAR:' + marca, sup: ''}, v = indicador(ind, ACT);
+    const base = distrib(ACT, all, () => false, null).get('TOTAL') || {n: 1};
+    out.push({titulo: `Distribuir ${marca}`, detalle: `${fHL(ids.length)} PDV venden ${seg} de la competencia y no tienen ${marca}. Meta: incorporarla en al menos el 30% de esos PDV.`,
+      ind, meta: Math.min(1, v + ids.length * 0.3 / base.n), univ: {tipo: 'DISTMAR', marca, seg}, n: ids.length});
+  }
+  // 3) recuperar clientes que cayeron, por supervisor
+  const rec = pdaCalc(all).filter(r => r.tipos.includes('Recuperar')), porSup = {};
+  rec.forEach(r => { porSup[P[r.i].sup] = (porSup[P[r.i].sup] || 0) + 1; });
+  Object.entries(porSup).filter(([s, n]) => n >= 5 && !/^OTROS/.test(s)).sort((a, b) => b[1] - a[1]).forEach(([sup, n]) => {
+    const ind = {met: 'SOM', obj: 'TOTAL', sup}, v = indicador(ind, ACT);
+    out.push({titulo: `Recuperar clientes de ${sup}`, detalle: `${n} clientes perdieron ${S.pdaCfg.caida} pp o más de SOM vs ${CA}. Visita del supervisor con el promotor, diagnóstico (precio, quiebre, competencia) y acción puntual por cliente.`,
+      ind, meta: Math.min(1, v + 0.02), univ: {tipo: 'REC', sup}, n, responsable: sup});
+  });
+  // 4) conquistar los PDV con más competencia
+  const conq = pdaCalc(all).filter(r => r.tipos.includes('Conquistar'));
+  if (conq.length){
+    const ind = {met: 'SOM', obj: 'TOTAL', sup: ''}, v = indicador(ind, ACT);
+    out.push({titulo: 'Conquistar clientes con alto volumen de competencia', detalle: `${fHL(conq.length)} PDV con ${S.pdaCfg.minComp}+ HL de competencia y SOM ≤ ${S.pdaCfg.maxSom}% (${fHL(conq.reduce((s, r) => s + r.comp, 0))} HL en juego). Negociación de espacio, equipo de frío y acuerdos por volumen.`,
+      ind, meta: Math.min(1, v + 0.015), univ: {tipo: 'CONQ'}, n: conq.length});
+  }
+  return out;
+}
+function planesAccion(){
+  D.planes = D.planes || [];
+  const props = planesPropuestos();
+  const ya = new Set(D.planes.map(p => p.titulo));
+  const sups = [...new Set(P.map(p => p.sup))].sort();
+  const marcas = [...new Set(D.maps.filter(m => m.incluir).map(m => m.marca))].sort();
+  const objOpts = (ind) => (ind.met === 'SOM' ? [['TOTAL', 'Total cerveza'], ...PDA_SEGS.concat(['SUPER PREMIUM']).map(s => ['SEG:' + s, 'Segmento ' + s])]
+    : [['EMP:CMQ', 'Total CMQ'], ...marcas.map(m => ['MAR:' + m, m])]).map(([v, l]) => `<option value="${esc(v)}" ${v === (ind.obj || 'TOTAL') ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  const pctIn = v => v == null ? '' : (Math.round(v * 1000) / 10);
+  const tarjeta = (p, i) => {
+    const act = indicador(p.ind, ACT);
+    const av = p.inicial != null && p.meta != null && p.meta !== p.inicial && act != null ? (act - p.inicial) / (p.meta - p.inicial) : null;
+    return `<div class="card" style="border-left:4px solid ${p.estado === 'Cumplido' ? 'var(--good)' : p.estado === 'En curso' ? 'var(--brand2)' : p.estado === 'Cancelado' ? 'var(--ink3)' : 'var(--accent)'}">
+      <div class="row" style="gap:10px;align-items:flex-end">
+        <div class="f" style="flex:3 1 260px"><label>Plan</label><input type="text" data-pl="${i}" data-k="titulo" value="${esc(p.titulo)}" style="font-weight:600"></div>
+        <div class="f" style="flex:1 1 150px"><label>Responsable</label><input type="text" list="dlSupPl" data-pl="${i}" data-k="responsable" value="${esc(p.responsable || '')}"></div>
+        <div class="f" style="flex:1 1 120px"><label>Fecha límite</label><input type="date" data-pl="${i}" data-k="fecha" value="${esc(p.fecha || '')}"></div>
+        <div class="f" style="flex:1 1 120px"><label>Estado</label><select data-pl="${i}" data-k="estado">${['Pendiente', 'En curso', 'Cumplido', 'Cancelado'].map(e => `<option ${e === p.estado ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+      </div>
+      <div class="f" style="margin-top:8px"><label>Detalle / acciones</label><textarea rows="2" data-pl="${i}" data-k="detalle">${esc(p.detalle || '')}</textarea></div>
+      <div class="row" style="gap:10px;align-items:flex-end;margin-top:8px">
+        <div class="f"><label>Indicador</label><select data-pl="${i}" data-k="met">${[['SOM', 'SOM'], ['DF', 'Distribución física'], ['DP', 'Distribución ponderada']].map(([v, l]) => `<option value="${v}" ${v === p.ind.met ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="f"><label>De</label><select data-pl="${i}" data-k="obj">${objOpts(p.ind)}</select></div>
+        <div class="f"><label>Supervisor</label><select data-pl="${i}" data-k="sup"><option value="">Toda la operación</option>${sups.map(s => `<option ${s === p.ind.sup ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
+        <div class="kpi" style="padding:6px 12px"><div class="lab">Inicial (${esc(p.base || ACT)})</div><div class="val" style="font-size:18px">${fP(p.inicial)}</div></div>
+        <div class="f"><label>Meta (%)</label><input type="number" step="0.1" data-pl="${i}" data-k="meta" value="${pctIn(p.meta)}" style="width:90px"></div>
+        <div class="kpi" style="padding:6px 12px"><div class="lab">Actual (${ACT})</div><div class="val" style="font-size:18px">${fP(act)}</div></div>
+        <div class="kpi" style="padding:6px 12px"><div class="lab">Avance hacia la meta</div><div class="val" style="font-size:18px">${av == null ? '–' : nf0.format(Math.max(0, av) * 100) + '%'}</div></div>
+      </div>
+      <div style="margin-top:10px"><b style="font-size:13px">Seguimiento</b>
+        <table style="margin-top:4px"><thead><tr><th class="l">Fecha</th><th>Valor medido (%)</th><th class="l">Comentario / qué se hizo</th><th></th></tr></thead><tbody>
+        ${(p.avances || []).map((a, j) => `<tr><td class="l">${esc(a.fecha)}</td><td>${a.valor === '' || a.valor == null ? '–' : nf1.format(a.valor) + '%'}</td><td class="l" style="white-space:normal">${esc(a.com)}${a.por ? ` <span class="muted">— ${esc(a.por)}</span>` : ''}</td><td><button class="btn" data-delav="${i}:${j}" style="padding:2px 8px">✕</button></td></tr>`).join('')}
+        <tr><td class="l"><input type="date" id="avF${i}"></td><td><input type="number" step="0.1" id="avV${i}" style="width:90px"></td><td class="l"><input type="text" id="avC${i}" placeholder="Ej: se visitaron 25 de 40 PDV, 12 con Stella" style="width:100%"></td><td><button class="btn" data-addav="${i}">Agregar</button></td></tr>
+        </tbody></table></div>
+      ${CLOUD && p._por ? `<div class="firma">${firmaTxt({por: p._por, ts: p._ts})}</div>` : ''}<div class="tools" style="margin:10px 0 0">${p.univ ? `<button class="btn" data-verun="${i}">Ver clientes del plan</button>` : ''}<button class="btn" data-recalc="${i}">Tomar valor inicial de nuevo</button><button class="btn" data-delpl="${i}" style="color:var(--bad)">Eliminar plan</button></div></div>`;
+  };
+  setTimeout(bindPlanes);
+  return `<div class="card"><h2>2. Planes de acción propuestos</h2>
+    <p class="desc">Salen de los resultados del censo (sin los filtros de arriba). Pasá al plan de trabajo los que vayas a ejecutar; ahí los podés editar.</p>
+    ${props.length ? `<div class="tw"><table><thead><tr><th class="l">Plan</th><th class="l">Por qué / cómo</th><th class="l">Indicador</th><th>Hoy</th><th>Meta</th><th>PDV</th><th></th></tr></thead><tbody>
+    ${props.map((p, k) => `<tr><td class="l"><b>${esc(p.titulo)}</b></td><td class="l" style="white-space:normal;min-width:320px">${esc(p.detalle)}</td><td class="l">${esc(indLabel(p.ind))}</td><td>${fP(indicador(p.ind, ACT))}</td><td>${fP(p.meta)}</td><td>${fHL(p.n)}</td>
+      <td>${ya.has(p.titulo) ? '<span class="pill">Ya en el plan</span>' : `<button class="btn pri" data-adopt="${k}">Agregar al plan</button>`}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No hay propuestas con los criterios actuales.</p>'}</div>
+    <div class="card"><h2>3. Plan de trabajo y seguimiento</h2>
+    <p class="desc">Cada plan con responsable, indicador, valor inicial (${CNAME[ACT]}), meta y fecha. Registrá los avances con fecha para mostrar en la auditoría que se ejecutaron. Cuando cargues un censo nuevo en Configuración, el "Actual" se recalcula solo. ${CLOUD ? 'Todo se guarda en la nube y lo ve todo el equipo al instante.' : 'Todo se guarda en este navegador y viaja dentro del HTML al descargarlo.'}</p>
+    <div class="tools"><button class="btn pri" id="plNuevo">+ Agregar plan propio</button><button class="btn" id="plCsv">Descargar plan de trabajo (CSV)</button>${CLOUD ? '<span class="muted nubeEst" style="font-size:12px"></span>' : '<button class="btn" id="dlHtml3">Descargar HTML con los planes</button>'}</div>
+    <datalist id="dlSupPl">${sups.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+    ${D.planes.length ? D.planes.map(tarjeta).join('') : '<p class="muted">Todavía no hay planes. Agregá propuestos o creá uno propio.</p>'}</div>`;
+  function bindPlanes(){
+    document.querySelectorAll('[data-adopt]').forEach(b => b.onclick = () => {
+      const p = props[+b.dataset.adopt];
+      D.planes.push({titulo: p.titulo, detalle: p.detalle, responsable: p.responsable || '', fecha: '', estado: 'Pendiente', ind: {...p.ind}, inicial: indicador(p.ind, ACT), base: ACT, meta: p.meta, univ: p.univ, avances: [], origen: 'propuesto'});
+      saveCfg(); render();
+    });
+    const nuevo = $('#plNuevo'); if (nuevo) nuevo.onclick = () => {
+      const ind = {met: 'SOM', obj: 'TOTAL', sup: ''};
+      D.planes.push({titulo: 'Nuevo plan', detalle: '', responsable: '', fecha: '', estado: 'Pendiente', ind, inicial: indicador(ind, ACT), base: ACT, meta: null, univ: null, avances: [], origen: 'propio'});
+      saveCfg(); render();
+    };
+    const csv = $('#plCsv'); if (csv) csv.onclick = () => {
+      const q = s => { s = String(s ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const L = [['Plan', 'Detalle', 'Responsable', 'Fecha límite', 'Estado', 'Indicador', 'Inicial', 'Meta', 'Actual ' + ACT, 'Avances'].join(';')];
+      D.planes.forEach(p => L.push([p.titulo, p.detalle, p.responsable, p.fecha, p.estado, indLabel(p.ind), fP(p.inicial), fP(p.meta), fP(indicador(p.ind, ACT)),
+        (p.avances || []).map(a => `${a.fecha}: ${a.valor === '' || a.valor == null ? '' : nf1.format(a.valor) + '% '}${a.com}`).join(' | ')].map(q).join(';')));
+      descargar('Plan_de_trabajo_PDA.csv', '﻿' + L.join('\r\n'), 'text/csv');
+    };
+    const dl = $('#dlHtml3'); if (dl) dl.onclick = descargarHtml;
+    document.querySelectorAll('[data-pl]').forEach(el => el.onchange = () => {
+      const p = D.planes[+el.dataset.pl], k = el.dataset.k;
+      if (k === 'met'){ p.ind.met = el.value; p.ind.obj = el.value === 'SOM' ? 'TOTAL' : 'EMP:CMQ'; p.inicial = indicador(p.ind, ACT); p.base = ACT; }
+      else if (k === 'obj' || k === 'sup'){ p.ind[k] = el.value; p.inicial = indicador(p.ind, ACT); p.base = ACT; }
+      else if (k === 'meta') p.meta = el.value === '' ? null : (+el.value) / 100;
+      else p[k] = el.value;
+      saveCfg(); if (['met', 'obj', 'sup', 'meta', 'estado'].includes(k)) render();
+    });
+    document.querySelectorAll('[data-addav]').forEach(b => b.onclick = () => {
+      const i = +b.dataset.addav, f = $('#avF' + i).value || new Date().toLocaleDateString('en-CA'), v = $('#avV' + i).value, c = $('#avC' + i).value.trim();
+      if (!c && v === '') return;
+      (D.planes[i].avances = D.planes[i].avances || []).push({fecha: f, valor: v === '' ? '' : +v, com: c, por: USUARIO || ''});
+      saveCfg(); render();
+    });
+    document.querySelectorAll('[data-delav]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.delav.split(':').map(Number); D.planes[i].avances.splice(j, 1); saveCfg(); render(); });
+    document.querySelectorAll('[data-delpl]').forEach(b => b.onclick = () => { if (!confirm('¿Eliminar este plan?')) return; D.planes.splice(+b.dataset.delpl, 1); saveCfg(); render(); });
+    document.querySelectorAll('[data-recalc]').forEach(b => b.onclick = () => { const p = D.planes[+b.dataset.recalc]; p.inicial = indicador(p.ind, ACT); p.base = ACT; saveCfg(); render(); });
+    document.querySelectorAll('[data-verun]').forEach(b => b.onclick = () => {
+      const p = D.planes[+b.dataset.verun], ids = univClientes(p.univ, new Uint8Array(P.length).fill(1));
+      const tot = pdvTot(ACT, new Uint8Array(P.length).fill(1)), cmq = pdvTarget(ACT, new Uint8Array(P.length).fill(1), m => m.empresa === 'CMQ');
+      const rows = ids.map(i => ({i, t: tot[i], q: cmq[i], _click: i}));
+      $('#dlgT').textContent = `${p.titulo} — ${ids.length} clientes`;
+      $('#dlgB').innerHTML = table('tPlanCli', [{lab: 'Cliente', l: true, fn: r => esc(P[r.i].rs) + ` <span class="muted">${P[r.i].id}</span>`}, {lab: 'Supervisor', l: true, fn: r => esc(P[r.i].sup)},
+        {lab: 'Promotor', l: true, fn: r => esc(P[r.i].ven)}, {lab: 'Subcanal', l: true, fn: r => esc(P[r.i].sub)}, {lab: 'HL mercado', fn: r => fHL(r.t)}, {lab: 'HL competencia', fn: r => fHL(r.t - r.q)}, {lab: 'SOM', fn: r => fP(div(r.q, r.t))}], rows, {nosort: true});
+      $('#dlg').showModal();
+    });
+  }
+}
+
+// ---------- PERFORMANCE POR CLIENTE ----------
+const SEG_CORTO = [['VALUE', 'Value'], ['CORE', 'Core'], ['CORE PLUS', 'Core+'], ['PREMIUM', 'Premium'], ['SUPER PREMIUM', 'S.Prem']];
+function perfCalc(ok){
+  const tot = {}, cmq = {};
+  for (const c of CIDS){ tot[c] = pdvTot(c, ok); cmq[c] = pdvTarget(c, ok, m => m.empresa === 'CMQ'); }
+  // por segmento en el censo actual
+  const segT = {}, segC = {};
+  SEG_CORTO.forEach(([s]) => { segT[s] = pdvTarget(ACT, ok, m => m.segmento === s); segC[s] = pdvTarget(ACT, ok, m => m.segmento === s && m.empresa === 'CMQ'); });
+  const ref = S.perfRef || CA, umbral = (S.perfUmbral ?? 5) / 100;
+  const out = [];
+  for (let i = 0; i < P.length; i++){
+    if (!ok[i] || !CIDS.some(c => tot[c][i] > 0)) continue;
+    const r = {i, hl: {}, som: {}, cmqHL: {}};
+    CIDS.forEach(c => { r.hl[c] = tot[c][i]; r.cmqHL[c] = cmq[c][i]; r.som[c] = tot[c][i] > 0 ? cmq[c][i] / tot[c][i] : null; });
+    r.seg = Object.fromEntries(SEG_CORTO.map(([s]) => [s, segT[s][i] > 0 ? segC[s][i] / segT[s][i] : null]));
+    r.dCA = sub(r.som[ACT], r.som[CA]); r.dAA = sub(r.som[ACT], r.som[AA]);
+    const d = sub(r.som[ACT], r.som[ref]);
+    r.est = r.som[ACT] == null ? 'Sin volumen hoy' : r.som[ref] == null ? 'Nuevo' : d >= umbral ? 'Mejoró' : d <= -umbral ? 'Empeoró' : 'Estable';
+    r.comp = r.hl[ACT] - r.cmqHL[ACT];
+    out.push(r);
+  }
+  return out;
+}
+const EST_CLS = {'Mejoró': 'up', 'Empeoró': 'down', 'Estable': 'flat', 'Nuevo': '', 'Sin volumen hoy': 'flat'};
+function rPerf(){
+  const ok = pdvMask();
+  const all = perfCalc(ok);
+  const ref = S.perfRef || CA;
+  const q = (S.perfQ || '').trim().toLowerCase();
+  const cnt = {}; all.forEach(r => cnt[r.est] = (cnt[r.est] || 0) + 1);
+  let rows = all.filter(r => (!S.perfEst || r.est === S.perfEst) && (!q || P[r.i].rs.toLowerCase().includes(q) || P[r.i].id.includes(q)));
+  rows.sort((a, b) => (b.hl[ACT] || 0) - (a.hl[ACT] || 0));
+  rows.forEach(r => { r._click = r.i; r._cls = 'click'; });
+  const hlMov = (est) => all.filter(r => r.est === est).reduce((s, r) => s + (r.hl[ACT] || 0), 0);
+  const chips = ['Mejoró', 'Estable', 'Empeoró', 'Nuevo', 'Sin volumen hoy'].map(e =>
+    `<button data-v="${e}" class="${S.perfEst === e ? 'on' : ''}">${e} · ${fHL(cnt[e] || 0)}</button>`).join('');
+  const cols = [{lab: 'Cliente', l: true, fn: r => esc(P[r.i].rs) + (P[r.i].est !== 'ACTIVO' ? ` <span class="pill">${esc(P[r.i].est)}</span>` : '') + `<br><span class="muted" style="font-size:11px">${P[r.i].id}</span>`, sv: r => P[r.i].rs},
+    {lab: 'Supervisor', l: true, fn: r => esc(P[r.i].sup), sv: r => P[r.i].sup},
+    {lab: 'Promotor', l: true, fn: r => esc(P[r.i].ven), sv: r => P[r.i].ven},
+    {lab: 'Subcanal', l: true, fn: r => esc(P[r.i].sub), sv: r => P[r.i].sub},
+    ...CIDS.map((c, j) => ({lab: (j === 0 ? 'HL ' : '') + c, bl: j === 0, fn: r => r.hl[c] ? nf1.format(r.hl[c]) : '–', sv: r => r.hl[c] || 0})),
+    ...CIDS.map((c, j) => ({lab: (j === 0 ? 'SOM ' : '') + c, bl: j === 0, fn: r => fP(r.som[c]), sv: r => r.som[c] ?? -1})),
+    {lab: 'Δ vs ' + CA, fn: r => fPP(r.dCA), sv: r => r.dCA ?? -9},
+    {lab: 'Δ vs ' + AA, fn: r => fPP(r.dAA), sv: r => r.dAA ?? -9},
+    ...SEG_CORTO.map(([s, l], j) => ({lab: l, bl: j === 0, fn: r => r.seg[s] == null ? '<span class="muted">–</span>' : fP(r.seg[s]), sv: r => r.seg[s] ?? -1})),
+    {lab: 'HL comp. ' + ACT, bl: true, fn: r => fHL(r.comp), sv: r => r.comp},
+    {lab: 'Tendencia', fn: r => `<span class="${EST_CLS[r.est]}">${r.est}</span>`, sv: r => r.est}];
+  setTimeout(() => {
+    document.querySelectorAll('#perfEst button').forEach(b => b.onclick = () => { S.perfEst = S.perfEst === b.dataset.v ? '' : b.dataset.v; render(); });
+    $('#perfRef').onchange = e => { S.perfRef = e.target.value; render(); };
+    $('#perfUm').onchange = e => { S.perfUmbral = Math.max(0, +e.target.value || 0); render(); };
+    $('#perfQ').oninput = e => { S.perfQ = e.target.value; clearTimeout(window._pq); window._pq = setTimeout(() => { render(); const el = $('#perfQ'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }, 250); };
+  });
+  return avisoUniverso() + `<div class="card"><h2>Performance por cliente</h2>
+    <p class="desc">SOM de cada cliente en los 3 censos y su share CMQ dentro de cada segmento en ${CNAME[ACT]}. "Tendencia" compara el SOM actual contra el censo elegido: mejora o empeora si se mueve más que el umbral. Clic en un cliente para ver el detalle por marca.</p>
+    <div class="tools">
+      <div class="f"><label>Comparar contra</label><select id="perfRef"><option value="${CA}" ${ref === CA ? 'selected' : ''}>${CNAME[CA]}</option><option value="${AA}" ${ref === AA ? 'selected' : ''}>${CNAME[AA]}</option></select></div>
+      <div class="f"><label>Umbral (pp)</label><input type="number" id="perfUm" value="${S.perfUmbral ?? 5}" min="0" step="1" style="width:90px"></div>
+      <div class="f"><label>Filtrar por tendencia (clic de nuevo para sacar)</label><div class="seg" id="perfEst">${chips}</div></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:0">HL ${ACT} de los clientes que mejoraron: <b>${fHL(hlMov('Mejoró'))}</b> · que empeoraron: <b>${fHL(hlMov('Empeoró'))}</b></p></div>
+    <div class="card">${table('tPerf', cols, rows, {groups: [['', 4], ['HL total cerveza', 3], ['SOM CMQ', 3], ['Variación (pp)', 2], ['SOM CMQ por segmento · ' + ACT, 5], ['', 2]],
+      extra: `<input type="text" id="perfQ" placeholder="Buscar cliente o código…" value="${esc(S.perfQ || '')}" style="min-width:240px"><span class="muted">${fHL(rows.length)} clientes · ordenados por HL ${ACT} (clic en un encabezado para reordenar)</span>`})}</div>`;
+}
+
+// ---------- CLIENTES / PDA ----------
+function clientesCalc(ok){
+  const tot = {}, cmq = {};
+  for (const c of CIDS){ tot[c] = pdvTot(c, ok); cmq[c] = pdvTarget(c, ok, m => m.empresa === 'CMQ'); }
+  const out = [];
+  for (let i = 0; i < P.length; i++){
+    if (!ok[i]) continue;
+    if (!CIDS.some(c => tot[c][i] > 0)) continue;
+    const r = {i, tot: tot[ACT][i], cmq: cmq[ACT][i]};
+    r.comp = r.tot - r.cmq; r.som = div(r.cmq, r.tot);
+    r.somCA = div(cmq[CA][i], tot[CA][i]); r.somAA = div(cmq[AA][i], tot[AA][i]);
+    r.totCA = tot[CA][i];
+    out.push(r);
+  }
+  return out;
+}
+function rCli(){
+  const ok = pdvMask();
+  let cli = clientesCalc(ok);
+  const q = S.cliQ.trim().toLowerCase();
+  const pda = c => c.comp >= S.pdaMinComp && c.som != null && c.som <= S.pdaMaxSom;
+  const nPda = cli.filter(pda), hlPda = nPda.reduce((s, c) => s + c.comp, 0);
+  let rows = cli.filter(c => !q || P[c.i].rs.toLowerCase().includes(q) || P[c.i].id.includes(q));
+  if (S.soloPda) rows = rows.filter(pda);
+  rows.sort((a, b) => b.comp - a.comp);
+  rows.forEach(r => { r._click = r.i; r._cls = 'click'; });
+  const cols = [{lab: 'Código', l: true, fn: r => P[r.i].id, sv: r => P[r.i].id},
+    {lab: 'Cliente', l: true, fn: r => esc(P[r.i].rs) + (P[r.i].est !== 'ACTIVO' ? ` <span class="pill">${esc(P[r.i].est)}</span>` : ''), sv: r => P[r.i].rs},
+    {lab: 'Supervisor', l: true, fn: r => esc(P[r.i].sup), sv: r => P[r.i].sup},
+    {lab: 'Promotor', l: true, fn: r => esc(P[r.i].ven), sv: r => P[r.i].ven},
+    {lab: 'Canal', l: true, fn: r => esc(P[r.i].canal), sv: r => P[r.i].canal},
+    {lab: 'Subcanal', l: true, fn: r => esc(P[r.i].sub), sv: r => P[r.i].sub},
+    {lab: 'HL mercado ' + ACT, bl: true, fn: r => fHL(r.tot), sv: r => r.tot},
+    {lab: 'HL CMQ', fn: r => fHL(r.cmq), sv: r => r.cmq},
+    {lab: 'HL competencia', fn: r => `<b>${fHL(r.comp)}</b>`, sv: r => r.comp},
+    {lab: 'SOM ' + ACT, bl: true, fn: r => fP(r.som), sv: r => r.som ?? -1},
+    {lab: 'SOM ' + CA, fn: r => fP(r.somCA), sv: r => r.somCA ?? -1},
+    {lab: 'SOM ' + AA, fn: r => fP(r.somAA), sv: r => r.somAA ?? -1},
+    {lab: 'Δ vs ' + CA, fn: r => fPP(sub(r.som, r.somCA)), sv: r => sub(r.som, r.somCA) ?? -9},
+    {lab: 'PDA', fn: r => pda(r) ? '<span class="pill" style="background:var(--warnbg);color:var(--warnink)">Sí</span>' : '', sv: r => pda(r) ? 1 : 0}];
+  setTimeout(() => {
+    $('#cliQ').oninput = e => { S.cliQ = e.target.value; clearTimeout(window._q); window._q = setTimeout(() => { render(); const el = $('#cliQ'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }, 250); };
+    $('#pdaMin').onchange = e => { S.pdaMinComp = +e.target.value || 0; render(); };
+    $('#pdaMax').onchange = e => { S.pdaMaxSom = (+e.target.value || 0) / 100; render(); };
+    $('#soloPda').onchange = e => { S.soloPda = e.target.checked; render(); };
+  });
+  return avisoUniverso() + `<div class="card"><h2>Universo del PDA</h2>
+    <p class="desc">Definí el criterio y el formulario marca qué clientes entran. Por defecto: PDV con al menos ${S.pdaMinComp} HL de competencia y SOM menor o igual a ${nf0.format(S.pdaMaxSom * 100)}% en ${CNAME[ACT]}.</p>
+    <div class="tools">
+      <div class="f"><label>HL de competencia mínimo</label><input type="number" id="pdaMin" value="${S.pdaMinComp}" min="0" step="1" style="width:110px"></div>
+      <div class="f"><label>SOM máximo (%)</label><input type="number" id="pdaMax" value="${Math.round(S.pdaMaxSom * 100)}" min="0" max="100" step="5" style="width:110px"></div>
+      <div class="kpi" style="padding:8px 14px"><div class="lab">Clientes en el PDA</div><div class="val" style="font-size:22px">${fHL(nPda.length)}</div></div>
+      <div class="kpi" style="padding:8px 14px"><div class="lab">HL de competencia en esos clientes</div><div class="val" style="font-size:22px">${fHL(hlPda)}</div></div>
+    </div></div>
+    <div class="card"><h2>Clientes</h2><p class="desc">Hacé clic en un cliente para ver el detalle por marca en los 3 censos. Vendedor y subcanal según la base de clientes actual.</p>
+    ${table('tCli', cols, rows.slice(0, 1500), {extra: `<input type="text" id="cliQ" placeholder="Buscar cliente o código…" value="${esc(S.cliQ)}" style="min-width:240px">
+      <label class="chk" style="padding:0"><input type="checkbox" id="soloPda" ${S.soloPda ? 'checked' : ''}> Solo clientes del PDA</label>
+      <span class="muted">${fHL(rows.length)} clientes${rows.length > 1500 ? ' (se muestran 1.500, el CSV también)' : ''}</span>`})}</div>`;
+}
+function verPdv(i){
+  const p = P[i];
+  const okAll = new Uint8Array(P.length); okAll[i] = 1;
+  const segBak = S.seg; S.seg = '';
+  const mar = Object.fromEntries(CIDS.map(c => [c, aggregate(c, okAll, (pp, m) => m.empresa + '|' + m.segmento + '|' + m.marca)]));
+  const keys = new Set(); CIDS.forEach(c => mar[c].forEach((v, k) => keys.add(k)));
+  const rows = [...keys].map(k => { const [e, s, m] = k.split('|'); return {e, s, m, d: Object.fromEntries(CIDS.map(c => [c, (mar[c].get(k) || {tot: 0}).tot]))}; })
+    .sort((a, b) => (a.e > b.e ? 1 : a.e < b.e ? -1 : SEGMENTOS.indexOf(a.s) - SEGMENTOS.indexOf(b.s)));
+  const tot = Object.fromEntries(CIDS.map(c => [c, rows.reduce((s, r) => s + r.d[c], 0)]));
+  const cmq = Object.fromEntries(CIDS.map(c => [c, rows.filter(r => r.e === 'CMQ').reduce((s, r) => s + r.d[c], 0)]));
+  S.seg = segBak;
+  const est = CIDS.map(c => `<span class="pill">${c}: ${p.c[c] ? esc(p.c[c][1]) : 'no estaba en la base del censo'}</span>`).join(' ');
+  $('#dlgT').textContent = `${p.rs} — ${p.id}`;
+  $('#dlgB').innerHTML = `<p>Promotor actual: <b>${esc(p.ven)}</b> · Supervisor: <b>${esc(p.sup)}</b> · Subcanal: <b>${esc(p.sub)}</b> (${esc(p.canal)}) · ${esc(p.est)}${p.loc ? ' · ' + esc(p.loc) : ''}</p>
+    <p>${est}</p>
+    <div class="tw"><table><thead><tr><th class="l">Compañía</th><th class="l">Segmento</th><th class="l">Marca</th>${CIDS.map(c => `<th>HL ${c}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(r => `<tr><td class="l">${r.e}</td><td class="l">${r.s}</td><td class="l">${esc(r.m)}</td>${CIDS.map(c => `<td>${r.d[c] ? nf1.format(r.d[c]) : '–'}</td>`).join('')}</tr>`).join('')}
+    <tr class="tot"><td class="l" colspan="3">Total cerveza</td>${CIDS.map(c => `<td>${nf1.format(tot[c])}</td>`).join('')}</tr>
+    <tr class="tot"><td class="l" colspan="3">SOM CMQ</td>${CIDS.map(c => `<td>${fP(div(cmq[c], tot[c]))}</td>`).join('')}</tr></tbody></table></div>`;
+  $('#dlg').showModal();
+}
+
+// ---------- CONFIGURACIÓN ----------
+function rCfg(){
+  const hlMap = {};
+  for (const c of CIDS){ const f = F[c]; for (let i = 0; i < f.n; i++) hlMap[f.m[i]] = (hlMap[f.m[i]] || 0) + f.v[i]; }   // HL ya ajustados por factor
+  const marcas = [...new Set(D.maps.map(m => m.marca))].sort();
+  const cals = [...new Set(D.maps.map(m => m.calibre))].sort();
+  const sups = [...new Set(D.venMap.map(r => r.sup).concat(['CORSINO PEDRO', 'MORENO FERNANDO', 'SECO ROBERTO ENRIQUE', 'ANTUAL PAULA', 'OTROS (sin supervisor)']))].sort();
+  const mrows = D.maps.map((m, i) => ({m, i})).filter(x => !S.cfgCenso || x.m.censo === S.cfgCenso);
+  const sel = (arr, v, attr) => `<select ${attr}>${arr.map(a => `<option ${a === v ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>`;
+  let h = `<div class="card"><h2>Guardar y compartir</h2>
+    ${CLOUD ? `<p class="desc">Estás conectado a la nube. Los cambios de esta pestaña se guardan solos y les llegan a todos al instante. "Descargar HTML" baja una foto que funciona sin internet, con notas y planes incluidos (útil para archivar el cierre o mandarla por mail).</p>
+    <div class="tools"><button class="btn pri" id="dlHtml">Descargar foto HTML</button><span class="muted nubeEst" style="font-size:12px"></span></div></div>` : `<p class="desc">Los cambios que hagas acá se aplican al instante y quedan guardados en este navegador. Para que los vean los demás, bajá el HTML actualizado y compartí ese archivo.</p>
+    <div class="tools"><button class="btn pri" id="dlHtml">Descargar HTML con los cambios</button>
+    <button class="btn" id="rstCfg">Volver a la configuración original</button>
+    ${dirty ? '<span class="pill" style="background:var(--warnbg);color:var(--warnink)">Hay cambios sin descargar</span>' : ''}</div></div>`}
+    <div class="card"><h2>Actualizar bases</h2>
+    <p class="desc">Elegí qué censo reemplazás y cargá el Excel. Acepta los tres formatos que usamos: base larga (una fila por PDV y artículo, como BASE_HL_OCT25/ABR26), template del distribuidor (como BASE_HL_SEP26) o resultados finales de la región (como PATAGONIA_Resultados_Finales; se toman solo las filas de Logística Total). La base de clientes (export del sistema) actualiza vendedores y subcanales. Necesita internet solo para leer el Excel.</p>
+    <div class="row"><div class="drop"><b>Base de censo</b><br>
+      <label class="muted" style="font-size:12px">Reemplazar:</label> <select id="upCid">${CIDS.map(c => `<option value="${c}" ${c === (S.upCid || ACT) ? 'selected' : ''}>${CNAME[c]}${D.fuentes && D.fuentes[c] ? ' (hoy: ' + esc(D.fuentes[c]) + ')' : ''}</option>`).join('')}</select><br>
+      <input type="file" id="upCenso" accept=".xlsx,.xls" style="margin-top:6px"></div>
+    <div class="drop"><b>Base de clientes</b> (total_clientes)<br><input type="file" id="upCli" accept=".xlsx,.xls"></div></div>
+    <div id="upMsg" class="desc" style="margin-top:10px">${S.upMsg || ''}</div></div>
+    <div class="card cfg"><h2>Marcas, calibres y segmentos</h2>
+    <p class="desc">Cada fila es una marca/calibre tal como vino en un censo. Cambiá la marca, compañía, segmento o calibre "de análisis" para que se agrupe y compare con los otros censos. Destildá "Incluir" para sacarla del total cerveza.</p>
+    <div class="tools"><span class="muted">Censo:</span><select id="cfgCenso"><option value="">Todos</option>${CIDS.map(c => `<option ${c === S.cfgCenso ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+    <datalist id="dlMarcas">${marcas.map(m => `<option value="${esc(m)}">`).join('')}</datalist>
+    <datalist id="dlCal">${cals.map(m => `<option value="${esc(m)}">`).join('')}</datalist>
+    <div class="tw"><table><thead><tr><th class="l">Censo</th><th class="l">Marca original</th><th class="l">Calibre original</th><th>HL</th><th class="l bl">Marca análisis</th><th class="l">Compañía</th><th class="l">Segmento</th><th class="l">Calibre análisis</th><th title="Multiplica los HL de esa fila. Sirve para corregir un factor de conversión mal aplicado.">Factor HL</th><th>Incluir</th></tr></thead><tbody>
+    ${mrows.map(({m, i}) => `<tr><td class="l">${m.censo}</td><td class="l">${esc(m.marca_orig)}</td><td class="l">${esc(m.calibre_orig)}</td><td>${fHL(hlMap[i] || 0)}</td>
+      <td class="l bl"><input type="text" list="dlMarcas" value="${esc(m.marca)}" data-m="${i}" data-f="marca"></td>
+      <td class="l">${sel(EMPRESAS, m.empresa, `data-m="${i}" data-f="empresa"`)}</td>
+      <td class="l">${sel(SEGMENTOS, m.segmento, `data-m="${i}" data-f="segmento"`)}</td>
+      <td class="l"><input type="text" list="dlCal" value="${esc(m.calibre)}" data-m="${i}" data-f="calibre"></td>
+      <td><input type="number" step="0.001" min="0" style="width:80px" value="${m.factor ?? 1}" data-m="${i}" data-f="factor"></td>
+      <td><input type="checkbox" ${m.incluir ? 'checked' : ''} data-m="${i}" data-f="incluir"></td></tr>`).join('')}</tbody></table></div></div>
+    <div class="row"><div class="card cfg"><h2>Promotor → supervisor</h2><p class="desc">Escribí el supervisor de cada promotor. Lo que pongas acá se usa en todas las aperturas.</p>
+    <datalist id="dlSup">${sups.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+    <div class="tw"><table><thead><tr><th class="l">Promotor (base actual)</th><th class="l">Supervisor</th><th>PDV</th></tr></thead><tbody>
+    ${D.venMap.map((r, i) => `<tr><td class="l">${esc(r.ven)}</td><td class="l"><input type="text" list="dlSup" value="${esc(r.sup)}" data-v="${i}"></td><td>${P.filter(p => p.ven === r.ven).length}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card cfg"><h2>Subcanal → canal</h2><p class="desc">REF es On premise; el resto cuenta como Off premise.</p>
+    <div class="tw"><table><thead><tr><th class="l">Subcanal</th><th class="l">Canal</th><th>PDV</th></tr></thead><tbody>
+    ${D.subMap.map((r, i) => `<tr><td class="l">${esc(r.sub)}</td><td class="l">${sel(CANALES, r.canal, `data-s="${i}"`)}</td><td>${P.filter(p => p.sub === r.sub).length}</td></tr>`).join('')}</tbody></table></div></div></div>
+    <div class="card"><h2>Calidad de datos</h2><ul class="concl">${calidadNotas().map(n => `<li>${n}</li>`).join('')}</ul></div>`;
+  setTimeout(bindCfg);
+  return h;
+}
+function bindCfg(){
+  $('#cfgCenso').onchange = e => { S.cfgCenso = e.target.value; render(); };
+  document.querySelectorAll('[data-m]').forEach(el => el.onchange = () => {
+    const m = D.maps[+el.dataset.m], f = el.dataset.f;
+    m[f] = f === 'incluir' ? el.checked : f === 'factor' ? (parseFloat(el.value) >= 0 ? parseFloat(el.value) : 1)
+      : (f === 'marca' || f === 'calibre' ? el.value.trim().toUpperCase() : el.value);
+    if (f === 'factor') buildFacts();
+    saveCfg();
+  });
+  document.querySelectorAll('[data-v]').forEach(el => { if (el.tagName === 'INPUT') el.onchange = () => { D.venMap[+el.dataset.v].sup = el.value.trim().toUpperCase() || 'OTROS (sin supervisor)'; saveCfg(); rebuildLookups(); }; });
+  document.querySelectorAll('[data-s]').forEach(el => el.onchange = () => { D.subMap[+el.dataset.s].canal = el.value; saveCfg(); rebuildLookups(); });
+  $('#dlHtml').onclick = descargarHtml;
+  if ($('#rstCfg')) $('#rstCfg').onclick = () => { if (!confirm('¿Volver a la configuración con la que vino el archivo?')) return; lsDel(CFG_KEY); D = JSON.parse(ORIG_JSON); P = D.pdv; buildFacts(); dirty = false; rebuildLookups(); render(); };
+  $('#upCid').onchange = e => { S.upCid = e.target.value; };
+  $('#upCenso').onchange = e => subirArchivo(e.target.files[0], 'censo', S.upCid || ACT);
+  $('#upCli').onchange = e => subirArchivo(e.target.files[0], 'cli');
+}
+function descargarHtml(){
+  D.version = 'v' + Date.now();
+  const json = JSON.stringify(D).replace(/<\//g, '<\\/');
+  const i = PAGE_HTML.indexOf(ORIG_JSON);
+  const html = PAGE_HTML.slice(0, i) + json + PAGE_HTML.slice(i + ORIG_JSON.length);
+  descargar('Analisis_Censo_Thomas.html', html, 'text/html');
+  lsSet('censoThomasCfg:' + D.version, JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, notas: D.notas || {}, planes: D.planes || []}));
+  dirty = false; render();
+}
+
+// ---------- carga de bases nuevas (SheetJS) ----------
+function cargarXLSX(){
+  return new Promise((res, rej) => {
+    if (window.XLSX) return res(window.XLSX);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => res(window.XLSX); s.onerror = () => rej(new Error('No se pudo cargar el lector de Excel (¿sin internet?)'));
+    document.head.appendChild(s);
+  });
+}
+function canonId(x){
+  let s = String(x ?? '').trim().split('.')[0];
+  const rest = s.startsWith('47311200') && s.length > 8 ? s.slice(8) : s;
+  const n = parseInt(rest, 10);
+  return isNaN(n) ? '' : '47311200' + String(n).padStart(6, '0');
+}
+function norm(s){
+  s = String(s ?? '').replace(/ /g, ' ').replace(/´/g, "'").replace(/\s+/g, ' ').trim();
+  [['PIZZER??A', 'PIZZERIA'], ['CAF??', 'CAFE'], ['ESTACI??N', 'ESTACION'], ['??', '']].forEach(([a, b]) => { s = s.split(a).join(b); });
+  return s;
+}
+const UP = s => norm(s).toUpperCase();
+const SINT = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+function calibreCanon(c){
+  const c0 = SINT(UP(c)).replace(/ /g, '');
+  if (!c0) return '';
+  if (c0.includes('TOTAL')) return 'TOTAL CALIBRES';
+  if (['LITRO', 'LITRORETORNABLE', 'LITROOW', 'LITROPET', '1L'].includes(c0)) return 'LITRO';
+  if (c0.includes('1,5') || c0.includes('1.5')) return '1,5 L';
+  if (c0.includes('1,2') || c0.includes('1.2')) return '1,2 L';
+  if (c0.includes('940')) return '940 CC';
+  if (c0.includes('500')) return '500 CC';
+  if (c0.includes('3/4') || (c0.includes('BOTELLA') && c0.includes('710'))) return 'BOTELLA 710';
+  if (c0.includes('710')) return 'LATA 710';
+  if (c0.includes('473') || c0.includes('410')) return 'LATA 473';
+  if (c0.includes('330')) return c0.includes('LATA') ? 'LATA 330' : 'BOTELLA 330';
+  return UP(c);
+}
+// mismo criterio que la primera carga: si ya hay una fila igual de otro censo, copia su configuración
+// mismas reglas de agrupación de marcas que se usaron al armar el archivo
+const REGLAS = [
+  [/^VINOS/, 'VINOS VALUE (no es cerveza)', 'OTROS', 'VALUE', false],
+  [/^0\.0%.*GANCIA/, 'GANCIA 0.0%', 'OTROS', 'SIN SEGMENTO', false],
+  [/^0\.0% QUILMES/, 'QUILMES 0.0%', 'CMQ', 'CORE', true],
+  [/^0\.0% STELLA/, 'STELLA ARTOIS 0.0%', 'CMQ', 'PREMIUM', true],
+  [/^0\.0% CORONA/, 'CORONA 0.0%', 'CMQ', 'SUPER PREMIUM', true],
+  [/^0\.0% HEINEKEN/, 'HEINEKEN 0.0%', 'CCU', 'PREMIUM', true],
+  [/^0\.0% IMPERIAL/, 'IMPERIAL 0.0%', 'CCU', 'CORE PLUS', true],
+  [/^0\.0%.*CCU/, '0.0% TOTAL CCU', 'CCU', 'SIN SEGMENTO', true],
+  [/^0\.0%/, '0.0% TOTAL CMQ', 'CMQ', 'SIN SEGMENTO', true],
+  [/^1890|^BAJO CERO|^VALUE LATA CMQ/, '1890 + BAJO CERO', 'CMQ', 'VALUE', true],
+  [/^TOTAL MARCAS CCU/, 'OTRAS CCU', 'CCU', 'SIN SEGMENTO', true],
+  [/^GROLS/, 'GROLSCH', 'OTROS', 'PREMIUM', true],
+  [/^LA FELIZ/, 'LA FELIZ', 'OTROS', 'SIN SEGMENTO', true],
+  [/CONTRABANDO.*PREMIUM/, 'CONTRABANDO PREMIUM', 'OTROS', 'PREMIUM', true],
+  [/CONTRABANDO/, 'CONTRABANDO CORE', 'OTROS', 'CORE', true],
+  [/^QUILMES \+ BRAHMA/, 'QUILMES + BRAHMA 1,2L', 'CMQ', 'CORE', true],
+  [/^QUILMES/, 'QUILMES', 'CMQ', 'CORE', true],
+  [/^BRAHMA/, 'BRAHMA', 'CMQ', 'CORE', true],
+  [/^BUDWEISER/, 'BUDWEISER', 'CMQ', 'CORE', true],
+  [/^ANDES ORIGEN/, 'ANDES ORIGEN', 'CMQ', 'CORE PLUS', true],
+  [/^ANDES/, 'ANDES', 'CMQ', 'CORE', true],
+  [/^STELLA/, 'STELLA ARTOIS', 'CMQ', 'PREMIUM', true],
+  [/^CORONA/, 'CORONA', 'CMQ', 'SUPER PREMIUM', true],
+  [/^PATAGONIA/, 'PATAGONIA', 'CMQ', 'SUPER PREMIUM', true],
+  [/^MICHELOB/, 'MICHELOB', 'CMQ', 'CORE PLUS', true],
+  [/^PALERMO|^IGUANA|^ISENBECK|^VALUE LATA CCU/, 'VALUE CCU', 'CCU', 'VALUE', true],
+  [/^SCHNEIDER REMIX/, 'SCHNEIDER REMIX', 'CCU', 'CORE', true],
+  [/^SCHNEIDER|^AMSTEL/, 'SCHNEIDER + AMSTEL', 'CCU', 'CORE', true],
+  [/^MILLER/, 'MILLER', 'CCU', 'CORE PLUS', true],
+  [/^IMPERIAL/, 'IMPERIAL', 'CCU', 'CORE PLUS', true],
+  [/^HEINEKEN/, 'HEINEKEN', 'CCU', 'PREMIUM', true],
+  [/^CORDOBA/, 'CORDOBA', 'CCU', 'VALUE', true],
+  [/^SALTA/, 'SALTA', 'CCU', 'CORE PLUS', true],
+  [/^NORTE/, 'NORTE', 'CCU', 'CORE', true],
+  [/^SANTA FE/, 'SANTA FE', 'CCU', 'CORE', true],
+  [/^361|^OTRAS VALUES \(361\)/, '361', 'OTROS', 'VALUE', true],
+  [/^OTRAS VALUE|^OTROS VALUE/, 'VALUE OTROS', 'OTROS', 'VALUE', true],
+  [/^BEAGLE|^CAPE HORN/, 'BEAGLE / CAPE HORN', 'OTROS', 'SUPER PREMIUM', true],
+  [/^ZEUS/, 'ZEUS', 'OTROS', 'VALUE', true],
+];
+const SIN_APERTURA = new Set(['CORONA', 'PATAGONIA', 'MICHELOB', 'QUILMES 0.0%', 'STELLA ARTOIS 0.0%', 'CORONA 0.0%', 'HEINEKEN 0.0%', 'IMPERIAL 0.0%', '0.0% TOTAL CMQ', '0.0% TOTAL CCU', 'GANCIA 0.0%']);
+function mapIdFor(censo, marca, cal, emp, seg){
+  const key = [norm(marca), norm(cal)];
+  let i = D.maps.findIndex(m => m.censo === censo && m.marca_orig === key[0] && m.calibre_orig === key[1]);
+  if (i >= 0) return i;
+  const K = s => SINT(UP(s));
+  // 1) si la misma marca/calibre ya existe en otro censo, copia su configuración (respeta lo que hayas editado)
+  const igual = D.maps.find(m => K(m.marca_orig) === K(key[0]) && calibreCanon(m.calibre_orig) === calibreCanon(cal));
+  const sim = igual || D.maps.find(m => K(m.marca_orig) === K(key[0]));
+  let row;
+  if (sim){
+    row = {marca: sim.marca, empresa: sim.empresa, segmento: sim.segmento, incluir: sim.incluir,
+      calibre: sim.calibre === 'TOTAL CALIBRES' ? 'TOTAL CALIBRES' : (igual ? igual.calibre : calibreCanon(cal)), nuevo: false};
+  } else {
+    // 2) si no, usa las reglas de agrupación
+    const r = REGLAS.find(x => x[0].test(K(key[0])));
+    row = r ? {marca: r[1], empresa: r[2], segmento: r[3], incluir: r[4], nuevo: false}
+            : {marca: UP(marca), empresa: ['CMQ', 'CCU'].includes(UP(emp)) ? UP(emp) : 'OTROS', segmento: SEGMENTOS.includes(UP(seg)) ? UP(seg) : 'SIN SEGMENTO', incluir: true, nuevo: true};
+    row.calibre = SIN_APERTURA.has(row.marca) ? 'TOTAL CALIBRES' : calibreCanon(cal);
+  }
+  D.maps.push({censo, marca_orig: key[0], calibre_orig: key[1], empresa_orig: norm(emp), segmento_orig: norm(seg), factor: 1, ...row});
+  return D.maps.length - 1;
+}
+async function subirArchivo(file, tipo, cid){
+  if (!file) return;
+  const msg = $('#upMsg'); msg.textContent = 'Leyendo ' + file.name + '…';
+  try {
+    const X = await cargarXLSX();
+    const wb = X.read(await file.arrayBuffer(), {type: 'array'});
+    // buscar la hoja que tiene los datos: en los templates oficiales es "Base HL" (no "Instrucciones" ni "Base Bultos")
+    let A = null;
+    const orden = [...wb.SheetNames].sort((x, y) => (/base hl/i.test(y) ? 1 : 0) - (/base hl/i.test(x) ? 1 : 0) || (/bultos/i.test(x) ? 1 : 0) - (/bultos/i.test(y) ? 1 : 0));
+    for (const nom of orden){
+      const filas = X.utils.sheet_to_json(wb.Sheets[nom], {header: 1, defval: null, raw: true});
+      const tieneClave = tipo === 'censo' ? filas.slice(0, 40).some(r => r && r.some(v => norm(v) === 'Concat Distris'))
+                                          : filas.slice(0, 5).some(r => r && r.some(v => norm(v) === 'Cliente'));
+      if (tieneClave){ A = filas; break; }
+    }
+    if (!A) throw new Error(tipo === 'censo' ? 'No encontré en ninguna hoja la columna "Concat Distris".' : 'No encontré en ninguna hoja la columna "Cliente".');
+    S.upMsg = tipo === 'censo' ? procesarCenso(A, cid, file.name) : procesarClientes(A);
+    buildFacts(); rebuildLookups(); dirty = true;
+    if (CLOUD){
+      render(); $('#upMsg').innerHTML = S.upMsg + '<br>Publicando en la nube…';
+      await publicarBase();
+      S.upMsg = S.upMsg.replace('Después bajá el HTML actualizado.', '') + '<br><span class="up">Publicado: todos ven la base nueva al recargar.</span>';
+    }
+    render();
+  } catch (err){ S.upMsg = '<span class="down">Error: ' + esc(err.message) + '</span>'; render(); }
+}
+function procesarCenso(A, cid, nombreArchivo){
+  cid = cid || ACT;
+  const hr = A.findIndex(r => r && r.some(v => norm(v) === 'Concat Distris'));
+  if (hr < 0) throw new Error('No encontré la fila de encabezados (columna "Concat Distris").');
+  const H = A[hr].map(norm), col = n => H.indexOf(n);
+  P.forEach(p => { if (p.c) delete p.c[cid]; });          // el censo se reemplaza entero
+  const idx = new Map(P.map((p, i) => [p.id, i]));
+  const nuevoPdv = (id, rs, sub) => { const i = P.length; P.push({id, rs: rs || '(sin nombre)', ven: 'NO ESTÁ EN BASE ACTUAL', sub, est: 'NO ESTÁ EN BASE', loc: '', c: {}}); idx.set(id, i); return i; };
+  const cierre = (formato, n, facts, nuevos, noNum) => {
+    D.facts[cid] = facts;
+    D.calidad = D.calidad.filter(c => !(c.censo === cid && c.tipo !== 'Fuente'));
+    D.calidad = D.calidad.filter(c => !(c.censo === cid && c.tipo === 'Fuente'));
+    D.calidad.push({censo: cid, tipo: 'Fuente', detalle: `${CNAME[cid]} cargado desde ${nombreArchivo || 'archivo'} (${formato}).`});
+    Object.entries(noNum).forEach(([mi, k]) => D.calidad.push({censo: cid, tipo: 'Valores no numéricos', detalle: `${D.maps[mi].marca_orig} ${D.maps[mi].calibre_orig}: ${k} PDV con texto en vez de número (se toman como 0)`}));
+    D.fuentes = D.fuentes || {}; D.fuentes[cid] = nombreArchivo || formato;
+    if (cid === ACT) D.fuenteActNombre = nombreArchivo || formato;
+    const nNuevas = D.maps.filter(m => m.nuevo && m.censo === cid).length;
+    const tot = facts.reduce((s, f) => s + (D.maps[f[1]].incluir ? f[2] : 0), 0);
+    const cmq = facts.reduce((s, f) => s + (D.maps[f[1]].incluir && D.maps[f[1]].empresa === 'CMQ' ? f[2] : 0), 0);
+    return `<span class="up">Listo — ${CNAME[cid]} reemplazado (${formato}):</span> ${fHL(n)} PDV de Logística Total, ${fHL(tot)} HL de cerveza, ${fHL(cmq)} HL CMQ (SOM ${fP(div(cmq, tot))})${nuevos ? `, ${nuevos} PDV que no estaban antes` : ''}.
+      ${nNuevas ? `<br><b>${nNuevas} marcas/calibres que no reconocí</b>: revisalos en la tabla de abajo (filtrá ${cid}).` : ''} Revisá los números y después bajá el HTML actualizado.`;
+  };
+  // formato largo: una fila por PDV y artículo (BASE_HL_OCT25 / ABR26)
+  if (col('Valores') >= 0 && col('Marca') >= 0 && col('Calibre') >= 0){
+    const c = {id: col('Concat Distris'), m: col('Marca'), cal: col('Calibre'), e: col('Empresa'), s: col('Segmento'), v: col('Valores'),
+      cens: col('Censado'), mot: col('Motivo No Censo'), pro: col('Promotor'), sub: col('Subcanal MKT'), rs: col('Razon social')};
+    const agg = new Map(), noNum = {}; let nuevos = 0; const vistos = new Set();
+    for (let r = hr + 1; r < A.length; r++){
+      const row = A[r]; if (!row) continue;
+      const rawId = String(row[c.id] ?? '').trim(); if (!rawId.startsWith('473112')) continue;
+      const id = canonId(rawId); if (!id) continue;
+      let i = idx.get(id); if (i == null){ i = nuevoPdv(id, norm(row[c.rs]), UP(row[c.sub])); nuevos++; }
+      if (!vistos.has(i)){
+        vistos.add(i);
+        const cens = String(row[c.cens] ?? '').trim() === '1' || UP(row[c.cens]) === 'SI';
+        const mot = norm(row[c.mot]);
+        P[i].c[cid] = [cens ? 1 : 0, cens ? 'Censado' : (mot && mot !== '0' ? mot : 'Sin dato'), norm(row[c.pro]), UP(row[c.sub])];
+      }
+      const mi = mapIdFor(cid, row[c.m], row[c.cal], row[c.e], row[c.s]);
+      const v = row[c.v]; if (v == null || v === '') continue;
+      const x = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
+      if (isNaN(x)){ noNum[mi] = (noNum[mi] || 0) + 1; continue; }
+      if (x !== 0){ const k = i + '|' + mi; agg.set(k, (agg.get(k) || 0) + x); }
+    }
+    const facts = [...agg.entries()].map(([k, v]) => { const [i, mi] = k.split('|').map(Number); return [i, mi, Math.round(v * 1e4) / 1e4]; });
+    return cierre('base larga por artículo', vistos.size, facts, nuevos, noNum);
+  }
+  const cPreg = col('Pregunta -->');
+  if (cPreg < 0) throw new Error('No encontré la columna "Pregunta -->" del censo.');
+  const meta = {}; for (let r = 0; r < hr; r++){ const l = norm(A[r] && A[r][cPreg]); if (['CMQ/CCU', 'Marca', 'Segmento', 'Calibre'].includes(l)) meta[l] = r; }
+  const prods = []; let formato;
+  if (meta.Marca != null){
+    // formato 1: template del distribuidor (filas de compañía / marca / segmento / calibre arriba)
+    formato = 'template del distribuidor';
+    let calFF = '';
+    for (let c = cPreg + 1; c < H.length; c++){
+      const cal = norm(A[meta.Calibre][c]); if (cal) calFF = cal;
+      const marca = norm(A[meta.Marca][c]).replace(/-+$/, '').trim(); if (!marca) continue;
+      prods.push({c, mi: mapIdFor(cid, marca, calFF, A[meta['CMQ/CCU']][c], A[meta.Segmento][c])});
+    }
+  } else {
+    // formato 2: resultados finales de la región (una sola fila de encabezado "MARCA-CALIBRE", todas las distribuidoras)
+    formato = 'resultados de la región';
+    const clave = s => SINT(UP(s)).replace(/[^A-Z0-9%]/g, '');
+    const porClave = new Map();
+    D.maps.forEach((m, i) => { if (m.censo === cid) porClave.set(clave(m.marca_orig + m.calibre_orig), i); });
+    for (let c = cPreg + 1; c < H.length; c++){
+      const h = H[c]; if (!h || h.startsWith('¿') || /^Unnamed/.test(h)) continue;
+      let mi = porClave.get(clave(h));
+      if (mi == null){
+        const k = h.lastIndexOf('-'); if (k <= 0) continue;
+        mi = mapIdFor(cid, h.slice(0, k).replace(/-+$/, '').trim(), h.slice(k + 1).trim(), '', '');
+      }
+      prods.push({c, mi});
+    }
+    if (!prods.length) throw new Error('No reconocí las columnas de marcas del archivo.');
+  }
+  const cDis = col('Código Directa/Distri');
+  const facts = [], noNum = {}; let n = 0, nuevos = 0;
+  for (let r = hr + 1; r < A.length; r++){
+    const row = A[r]; if (!row) continue;
+    const rawId = String(row[col('Concat Distris')] ?? '').trim();
+    if (cDis >= 0 && row[cDis] != null && String(row[cDis]).trim() !== '473112') continue;   // solo Logística Total
+    if (!rawId.startsWith('473112')) continue;
+    const id = canonId(rawId); if (!id) continue;
+    n++;
+    let i = idx.get(id);
+    if (i == null){ i = nuevoPdv(id, '', UP(row[col('Subcanal MKT')])); nuevos++; }
+    const cens = UP(row[col('Pdv es censable')]) === 'SI', mot = norm(row[col('Motivo No Censo')]);
+    P[i].c[cid] = [cens ? 1 : 0, cens ? 'Censado' : (mot || 'Sin dato'), norm(row[col('Promotor')]), UP(row[col('Subcanal MKT')])];
+    for (const p of prods){
+      const v = row[p.c]; if (v == null || v === '') continue;
+      const x = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
+      if (isNaN(x)){ noNum[p.mi] = (noNum[p.mi] || 0) + 1; continue; }
+      if (x !== 0) facts.push([i, p.mi, Math.round(x * 1e4) / 1e4]);
+    }
+  }
+  return cierre(formato, n, facts, nuevos, noNum);
+}
+function procesarClientes(A){
+  const H = (A[0] || []).map(norm), col = n => H.indexOf(n);
+  const cCli = col('Cliente'), cVen = col('Fuerza de venta 1 Descripcion personal comercial'), cSub = col('Descripcion subcanal'),
+    cRs = col('Razon social'), cAn = col('Anulado'), cLoc = col('Descripcion localidad');
+  if (cCli < 0 || cVen < 0) throw new Error('No encontré las columnas "Cliente" y "Fuerza de venta 1 Descripcion personal comercial".');
+  const m = new Map();
+  for (let r = 1; r < A.length; r++){ const row = A[r]; if (!row || row[cCli] == null) continue; m.set(canonId(row[cCli]), row); }
+  let act = 0;
+  P.forEach(p => {
+    const row = m.get(p.id);
+    if (!row){ p.ven = 'NO ESTÁ EN BASE ACTUAL'; p.est = 'NO ESTÁ EN BASE'; return; }
+    act++;
+    p.ven = UP(row[cVen]) || 'SIN VENDEDOR'; p.sub = UP(row[cSub]) || p.sub; p.est = UP(row[cAn]) === 'SI' ? 'ANULADO' : 'ACTIVO';
+    const rs = norm(row[cRs]); if (rs && rs !== 'HISTORICO') p.rs = rs; p.loc = cLoc >= 0 ? norm(row[cLoc]) : p.loc;
+  });
+  const nv = [...new Set(P.map(p => p.ven))].filter(v => !D.venMap.some(r => r.ven === v));
+  nv.forEach(v => D.venMap.push({ven: v, sup: 'OTROS (sin supervisor)'}));
+  const ns = [...new Set(P.map(p => p.sub))].filter(s => s && !D.subMap.some(r => r.sub === s));
+  ns.forEach(s => D.subMap.push({sub: s, canal: /^(REG|BASE|TOP|CADENA|KA) /.test(s) ? 'REF' : 'K+T'}));
+  D.venMap.sort((a, b) => a.ven < b.ven ? -1 : 1); D.subMap.sort((a, b) => a.sub < b.sub ? -1 : 1);
+  return `<span class="up">Listo:</span> ${fHL(act)} PDV encontrados en la base nueva.${nv.length ? `<br><b>Promotores nuevos sin supervisor:</b> ${esc(nv.join(', '))}. Asignalos abajo.` : ''}${ns.length ? `<br>Subcanales nuevos: ${esc(ns.join(', '))} (revisá el canal).` : ''} Después bajá el HTML actualizado.`;
+}
+
+// ---------- render ----------
+function render(){
+  renderTabs(); renderFilters();
+  const fn = {resumen: rResumen, som: rSom, sos: rSos, dist: rDist, opo: rOpo, perf: rPerf, cli: rCli, cfg: rCfg}[S.tab];
+  $('#main').innerHTML = fn();
+}
+buildFacts();
+loadCfg();
+render();
+pintarUsuario();
+if (CLOUD) setTimeout(migrarLocal, 600);
+</script>
+</body>
+</html>

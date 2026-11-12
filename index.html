@@ -119,6 +119,7 @@ const FB_ROOT = 'censo';
 window.CLOUD = false; window.FBDB = null; window.FB_INI = {}; window.ADMIN = false; window.USUARIO = '';
 function bootMsg(h){ const b = document.getElementById('boot'); if (b) b.innerHTML = h; }
 function cargarJs(u){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + u)); document.head.appendChild(s); }); }
+function partir(t){ const o = {}; for (let i = 0, n = 0; i < t.length; i += 400000, n++) o['c' + String(n).padStart(3, '0')] = t.slice(i, i + 400000); return o; }
 async function sha(t){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('censoLT|' + t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
 function arrancar(){
   if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', arrancar, {once: true}); return; }
@@ -153,12 +154,35 @@ function arrancar(){
         else if (a !== null) alert('PIN incorrecto. Entrás como usuario normal.');
       }
     }
-    if (!base){
-      bootMsg(window.ADMIN ? '<b>La base está vacía.</b><br>Importá <code>firebase_import_censo.json</code> en Realtime Database (⋮ → Importar JSON) y recargá.'
-                           : 'Todavía no hay datos cargados. Avisale al analista.');
+    // la base puede venir en un solo texto o partida en pedazos (c000, c001, …)
+    let txtBase = typeof base === 'string' ? base : (base && typeof base === 'object' ? Object.keys(base).sort().map(k => base[k]).join('') : '');
+    let ok = false; try { const d = JSON.parse(txtBase); ok = !!(d && d.pdv && d.facts && d.censos); } catch(e){}
+    if (!ok){
+      if (!window.ADMIN){ bootMsg('Todavía no hay datos cargados (o están incompletos). Avisale al analista.'); return; }
+      bootMsg(`<b>${txtBase ? 'Los datos del censo en la nube están incompletos.' : 'La base está vacía.'}</b><br><br>
+        Elegí el archivo <code>firebase_import_censo.json</code> (o un <code>Analisis_Censo_Thomas.html</code> con datos) y los subo desde acá:<br><br>
+        <input type="file" id="iniFile" accept=".json,.html"><div id="iniMsg" style="margin-top:10px"></div>`);
+      document.getElementById('iniFile').onchange = async ev => {
+        const f = ev.target.files[0], msg = document.getElementById('iniMsg'); if (!f) return;
+        try {
+          msg.textContent = 'Leyendo ' + f.name + '…';
+          const t = await f.text(); let b = null;
+          if (/\.json$/i.test(f.name)){ const j = JSON.parse(t); b = j.censo && j.censo.base || j.base || (j.pdv ? JSON.stringify(j) : null); }
+          else { const m = t.match(/<script id="data" type="application\/json">([\s\S]*?)<\/script>/); b = m && m[1]; }
+          if (b && typeof b === 'object') b = Object.keys(b).sort().map(k => b[k]).join('');
+          if (typeof b !== 'string') throw new Error('No encontré los datos del censo en ese archivo.');
+          const d = JSON.parse(b); if (!d.pdv || !d.facts) throw new Error('El archivo no tiene los datos del censo.');
+          const notas0 = d.notas, planes0 = d.planes; delete d.notas; delete d.planes;
+          b = JSON.stringify(d).replace(/<\//g, '<\\/');
+          msg.textContent = 'Subiendo ' + Math.round(b.length / 1024) + ' KB…';
+          const up = {base: partir(b), 'meta/ver': d.version || ('v' + Date.now()), 'meta/por': 'ANALISTA', 'meta/ts': Date.now()};
+          await db.ref(FB_ROOT).update(up);
+          msg.innerHTML = '<b style="color:#4caf50">Listo. Recargando…</b>'; setTimeout(() => location.reload(), 800);
+        } catch (e){ msg.innerHTML = '<b style="color:#f07a1e">Error: ' + String(e.message || e).replace(/</g, '&lt;') + '</b>'; }
+      };
       return;
     }
-    el.textContent = base;
+    el.textContent = txtBase;
     window.FB_INI = {cfg, notas: notas || {}, planes: planes || {}, ver: meta && meta.ver};
     window.CLOUD = true;
     arrancar();
@@ -168,10 +192,17 @@ function arrancar(){
 })();
 window.addEventListener('hashchange', () => location.reload());
 // si algo falla, mostrarlo en pantalla en vez de dejarla vacía
+function mostrarError(e, donde){
+  const txt = (e && (e.stack || e.message)) || String(e);
+  let b = document.getElementById('errBox');
+  if (!b){ b = document.createElement('div'); b.id = 'errBox'; b.style.cssText = 'background:#2a1a10;color:#f07a1e;border:1px solid #f07a1e;border-radius:8px;margin:12px 20px;padding:10px 14px;font-size:12px;white-space:pre-wrap'; const m = document.getElementById('main'); m.parentNode.insertBefore(b, m); }
+  b.textContent = 'Error' + (donde ? ' (' + donde + ')' : '') + ': ' + txt.slice(0, 900) + '\n— mandale una captura de esto a Claude.';
+}
+function G(fn){ return function(){ try { return fn.apply(this, arguments); } catch (e){ mostrarError(e, 'actualización en vivo'); } }; }
 window.addEventListener('error', ev => {
-  const m = document.getElementById('main'); if (!m || (m.textContent || '').trim().length > 200) return;
-  m.innerHTML = '<div id="boot" style="color:#f07a1e"><b>Error al abrir el análisis:</b><br>' + String(ev.message || ev.error).replace(/</g, '&lt;') +
-    '<br><span style="color:#aaa">línea ' + (ev.lineno || '?') + ' — mandale una captura de esto a Ivo/Claude.</span></div>';
+  const vacia = ((document.getElementById('main') || {}).textContent || '').trim().length < 200;
+  if (ev.message === 'Script error.' && !ev.error){ if (vacia) mostrarError('falló un script externo (Firebase o una extensión del navegador). Probá en una ventana de incógnito.', 'externo'); return; }
+  mostrarError(ev.error || ev.message, 'línea ' + (ev.lineno || '?'));
 });
 window.addEventListener('unhandledrejection', ev => window.dispatchEvent(new ErrorEvent('error', {message: 'Promesa: ' + (ev.reason && ev.reason.message || ev.reason)})));
 </script>
@@ -288,12 +319,12 @@ function cloudInit(){
   if (I.cfg){ aplicarCfg(I.cfg); SRV.cfg = cfgJson(); } else SRV.cfg = cfgJson();
   leerNotas(I.notas); leerPlanes(I.planes);
   const ref = k => FBDB.ref(FB_ROOT + '/' + k);
-  ref('notas').on('value', s => { if (saveCfg._t){ IGN.add('notas'); return; } const antes = JSON.stringify(D.notas); leerNotas(s.val()); if (JSON.stringify(D.notas) !== antes) reRender(); });
-  ref('planes').on('value', s => { if (saveCfg._t){ IGN.add('planes'); return; } const antes = JSON.stringify(D.planes.map(planJson)); leerPlanes(s.val()); if (JSON.stringify(D.planes.map(planJson)) !== antes) reRender(); });
-  ref('cfg').on('value', s => { const v = s.val(); if (!v || v === SRV.cfg) return; aplicarCfg(v); SRV.cfg = cfgJson(); buildFacts(); rebuildLookups(); reRender(); });
-  ref('meta/ver').on('value', s => { const v = s.val(); if (v && I.ver && v !== I.ver && v !== MI_VER) banner('Se cargó una base nueva del censo.', 'Actualizar'); });
+  ref('notas').on('value', G(s => { if (saveCfg._t){ IGN.add('notas'); return; } const antes = JSON.stringify(D.notas); leerNotas(s.val()); if (JSON.stringify(D.notas) !== antes) reRender(); }));
+  ref('planes').on('value', G(s => { if (saveCfg._t){ IGN.add('planes'); return; } const antes = JSON.stringify(D.planes.map(planJson)); leerPlanes(s.val()); if (JSON.stringify(D.planes.map(planJson)) !== antes) reRender(); }));
+  ref('cfg').on('value', G(s => { const v = s.val(); if (!v || v === SRV.cfg) return; aplicarCfg(v); SRV.cfg = cfgJson(); buildFacts(); rebuildLookups(); reRender(); }));
+  ref('meta/ver').on('value', G(s => { const v = s.val(); if (v && I.ver && v !== I.ver && v !== MI_VER) banner('Se cargó una base nueva del censo.', 'Actualizar'); }));
   ref('.info/connected'.replace(FB_ROOT + '/', ''));
-  FBDB.ref('.info/connected').on('value', s => { ONLINE = !!s.val(); pintarUsuario(); });
+  FBDB.ref('.info/connected').on('value', G(s => { ONLINE = !!s.val(); pintarUsuario(); }));
   pedirUsuario();
 }
 let ONLINE = true, MI_VER = null, PEND = false;
@@ -342,7 +373,7 @@ async function publicarBase(){
   const {notas, planes, ...base} = D;
   MI_VER = 'v' + Date.now();
   base.version = MI_VER;
-  const up = {base: JSON.stringify(base).replace(/<\//g, '<\\/'), cfg: cfgJson(), 'meta/ver': MI_VER, 'meta/por': USUARIO, 'meta/ts': Date.now()};
+  const up = {base: partir(JSON.stringify(base).replace(/<\//g, '<\\/')), cfg: cfgJson(), 'meta/ver': MI_VER, 'meta/por': USUARIO, 'meta/ts': Date.now()};
   await FBDB.ref(FB_ROOT).update(up);
   SRV.cfg = up.cfg;
 }

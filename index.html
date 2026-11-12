@@ -118,7 +118,7 @@ const FB_CONF = {"apiKey": "AIzaSyCYq7eaqQcRcOT1-hWMo9d5rsA-hRJGG30", "authDomai
 const FB_ROOT = 'censo';
 window.CLOUD = false; window.FBDB = null; window.FB_INI = {}; window.ADMIN = false; window.USUARIO = '';
 function bootMsg(h){ const b = document.getElementById('boot'); if (b) b.innerHTML = h; }
-function cargarJs(u){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + u)); document.head.appendChild(s); }); }
+function cargarJs(u){ return new Promise((res, rej) => { const s = document.createElement('script'); s.crossOrigin = 'anonymous'; s.src = u; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + u)); document.head.appendChild(s); }); }
 function partir(t){ const o = {}; for (let i = 0, n = 0; i < t.length; i += 400000, n++) o['c' + String(n).padStart(3, '0')] = t.slice(i, i + 400000); return o; }
 async function sha(t){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('censoLT|' + t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
 function arrancar(){
@@ -129,16 +129,20 @@ function arrancar(){
   s.textContent = document.getElementById('app').textContent;
   document.body.appendChild(s);
 }
+window.ETAPA = 'inicio';
+setTimeout(() => { if (!window.__APP_OK) mostrarError('la página no terminó de abrir. Quedó en la etapa: ' + window.ETAPA, 'demora'); }, 20000);
 (async function boot(){
   const el = document.getElementById('data');
   const txt = el.textContent.trim();
   if (txt && txt !== 'null'){ arrancar(); return; }          // foto descargada: funciona sin conexión
   try {
+    window.ETAPA = 'cargando Firebase';
     const V = 'https://www.gstatic.com/firebasejs/10.12.2/';
     await cargarJs(V + 'firebase-app-compat.js');
     await cargarJs(V + 'firebase-database-compat.js');
     firebase.initializeApp(FB_CONF);
     const db = firebase.database(); window.FBDB = db;
+    window.ETAPA = 'leyendo la base';
     const g = k => db.ref(FB_ROOT + '/' + k).get().then(s => s.val());
     const [base, cfg, notas, planes, meta, pin] = await Promise.all(['base', 'cfg', 'notas', 'planes', 'meta', 'admin/pin'].map(g));
     window.ADMIN = false;
@@ -182,6 +186,7 @@ function arrancar(){
       };
       return;
     }
+    window.ETAPA = 'dibujando el análisis (' + Math.round(txtBase.length / 1024) + ' KB)';
     el.textContent = txtBase;
     window.FB_INI = {cfg, notas: notas || {}, planes: planes || {}, ver: meta && meta.ver};
     window.CLOUD = true;
@@ -196,7 +201,7 @@ function mostrarError(e, donde){
   const txt = (e && (e.stack || e.message)) || String(e);
   let b = document.getElementById('errBox');
   if (!b){ b = document.createElement('div'); b.id = 'errBox'; b.style.cssText = 'background:#2a1a10;color:#f07a1e;border:1px solid #f07a1e;border-radius:8px;margin:12px 20px;padding:10px 14px;font-size:12px;white-space:pre-wrap'; const m = document.getElementById('main'); m.parentNode.insertBefore(b, m); }
-  b.textContent = 'Error' + (donde ? ' (' + donde + ')' : '') + ': ' + txt.slice(0, 900) + '\n— mandale una captura de esto a Claude.';
+  if (!b.dataset.n){ b.dataset.n = 1; b.textContent = 'Mandale una captura de esto a Claude:\n'; } b.textContent += '\n• ' + (donde ? '[' + donde + '] ' : '') + txt.slice(0, 700);
 }
 function G(fn){ return function(){ try { return fn.apply(this, arguments); } catch (e){ mostrarError(e, 'actualización en vivo'); } }; }
 window.addEventListener('error', ev => {
@@ -329,7 +334,9 @@ function cloudInit(){
 }
 let ONLINE = true, MI_VER = null, PEND = false;
 const IGN = new Set();
+let LISTO = false;
 function reRender(){
+  if (!LISTO) return;
   const a = document.activeElement;
   if (a && a.closest && a.closest('#main') && /INPUT|TEXTAREA|SELECT/.test(a.tagName)){
     if (!PEND){ PEND = true; a.addEventListener('blur', () => setTimeout(() => { PEND = false; reRender(); }, 50), {once: true}); }
@@ -1732,6 +1739,7 @@ function render(){
 buildFacts();
 loadCfg();
 render();
+LISTO = true; window.__APP_OK = true;
 pintarUsuario();
 if (CLOUD) setTimeout(migrarLocal, 600);
 </script>

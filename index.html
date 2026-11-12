@@ -167,6 +167,13 @@ function arrancar(){
   }
 })();
 window.addEventListener('hashchange', () => location.reload());
+// si algo falla, mostrarlo en pantalla en vez de dejarla vacía
+window.addEventListener('error', ev => {
+  const m = document.getElementById('main'); if (!m || (m.textContent || '').trim().length > 200) return;
+  m.innerHTML = '<div id="boot" style="color:#f07a1e"><b>Error al abrir el análisis:</b><br>' + String(ev.message || ev.error).replace(/</g, '&lt;') +
+    '<br><span style="color:#aaa">línea ' + (ev.lineno || '?') + ' — mandale una captura de esto a Ivo/Claude.</span></div>';
+});
+window.addEventListener('unhandledrejection', ev => window.dispatchEvent(new ErrorEvent('error', {message: 'Promesa: ' + (ev.reason && ev.reason.message || ev.reason)})));
 </script>
 <script id="app" type="text/plain">
 "use strict";

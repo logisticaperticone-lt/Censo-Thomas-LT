@@ -328,7 +328,6 @@ function cloudInit(){
   ref('planes').on('value', G(s => { if (saveCfg._t){ IGN.add('planes'); return; } const antes = JSON.stringify(D.planes.map(planJson)); leerPlanes(s.val()); if (JSON.stringify(D.planes.map(planJson)) !== antes) reRender(); }));
   ref('cfg').on('value', G(s => { const v = s.val(); if (!v || v === SRV.cfg) return; aplicarCfg(v); SRV.cfg = cfgJson(); buildFacts(); rebuildLookups(); reRender(); }));
   ref('meta/ver').on('value', G(s => { const v = s.val(); if (v && I.ver && v !== I.ver && v !== MI_VER) banner('Se cargó una base nueva del censo.', 'Actualizar'); }));
-  ref('.info/connected'.replace(FB_ROOT + '/', ''));
   FBDB.ref('.info/connected').on('value', G(s => { ONLINE = !!s.val(); pintarUsuario(); }));
   pedirUsuario();
 }

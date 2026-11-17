@@ -276,6 +276,7 @@ function loadCfg(){
       if (c.pdaEst) D.pdaEst = c.pdaEst;
       if (c.ventaMap) D.ventaMap = c.ventaMap;
       if (c.ventas) D.ventas = c.ventas;
+      if (c.ventasU) D.ventasU = c.ventasU;
       dirty = true;
     } catch(e){}
   } else {
@@ -301,7 +302,7 @@ function rebuildLookups(){
 function saveCfg(){
   if (CLOUD){ clearTimeout(saveCfg._t); saveCfg._t = setTimeout(cloudSync, 350); return; }
   dirty = true;
-  lsSet(CFG_KEY, JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, notas: D.notas || {}, planes: D.planes || [], pdaEst: D.pdaEst || {}, ventaMap: D.ventaMap || {}, ventas: D.ventas || {}}));
+  lsSet(CFG_KEY, JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, notas: D.notas || {}, planes: D.planes || [], pdaEst: D.pdaEst || {}, ventaMap: D.ventaMap || {}, ventas: D.ventas || {}, ventasU: D.ventasU || {}}));
 }
 
 
@@ -344,7 +345,11 @@ function cloudInit(){
   ref('pdaest').on('value', G(s => { D.pdaEst = s.val() || {}; reRender(); refrescarDlgPlan(); }));
   ref('ventas').on('value', G(s => {
     const v = s.val() || {}; D.ventas = {};
-    Object.entries(v).forEach(([mes, x]) => { try { D.ventas[mes] = JSON.parse(typeof x === 'string' ? x : Object.keys(x).sort().map(k => x[k]).join('')); } catch(e){} });
+    D.ventasU = {};
+    Object.entries(v).forEach(([mes, x]) => { try {
+      const o = JSON.parse(typeof x === 'string' ? x : Object.keys(x).sort().map(k => x[k]).join(''));
+      if (o && o.c && o.u){ D.ventas[mes] = o.c; D.ventasU[mes] = o.u; } else D.ventas[mes] = o;
+    } catch(e){} });
     reRender(); refrescarDlgPlan();
   }));
   FBDB.ref('.info/connected').on('value', G(s => { ONLINE = !!s.val(); pintarUsuario(); }));
@@ -395,7 +400,7 @@ async function cloudSync(){
 }
 function estado(t){ document.querySelectorAll('.nubeEst').forEach(e => e.textContent = t); }
 async function publicarBase(){
-  const {notas, planes, pdaEst, ventas, ...base} = D;
+  const {notas, planes, pdaEst, ventas, ventasU, ...base} = D;
   MI_VER = 'v' + Date.now();
   base.version = MI_VER;
   const up = {base: partir(JSON.stringify(base).replace(/<\//g, '<\\/')), cfg: cfgJson(), 'meta/ver': MI_VER, 'meta/por': USUARIO, 'meta/ts': Date.now()};
@@ -1257,7 +1262,7 @@ function planesAccion(){
       <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><b style="font-size:13px">Clientes del plan</b>
         ${p.cli && p.cli.length ? `<div class="row" style="gap:10px;align-items:flex-end;margin-top:6px">
           <div class="f"><label>Cuenta como "compró" si compra</label><select data-pl="${i}" data-k="compra">${[['EMP:CMQ', 'Cualquier cerveza CMQ'], ...SEGMENTOS.filter(s => s !== 'SIN SEGMENTO').map(s => ['SEG:' + s, 'Segmento ' + s]), ...marcas.filter(m => (infoMarcas()[m] || {}).emp === 'CMQ').map(m => ['MAR:' + m, m])].map(([v, l]) => `<option value="${esc(v)}" ${v === objCompra(p) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
-          <div class="f"><label>Contar ventas desde</label><input type="month" data-pl="${i}" data-k="desde" value="${esc(p.desde || '')}"></div>
+          <div class="f"><label>Contar ventas desde (vacío = después del censo)</label><input type="month" data-pl="${i}" data-k="desde" value="${esc(p.desde || '')}"></div>
           <button class="btn pri" data-segpl="${esc(asegId(p))}">Ver y trabajar los ${fHL(p.cli.length)} clientes</button></div>${resumenPlanHtml(p)}`
         : `<p class="muted" style="font-size:12px;margin:4px 0">Todavía no tiene una lista fija de clientes. Fijala para seguir cliente por cliente quién compró y comparar en el próximo censo.</p>
           <div class="tools">${p.univ ? `<button class="btn pri" data-fijar="${i}" data-modo="univ">Fijar los clientes de este plan</button>` : ''}<button class="btn" data-fijar="${i}" data-modo="filtro">Fijar = universo PDA con los filtros de arriba</button></div>`}
@@ -1335,7 +1340,7 @@ function planesAccion(){
 
 
 // ---------- SEGUIMIENTO DE CLIENTES DEL PDA (lista congelada + ventas mensuales + cierre con censo nuevo) ----------
-D.ventas = D.ventas || {}; D.pdaEst = D.pdaEst || {}; D.ventaMap = D.ventaMap || {};
+D.ventas = D.ventas || {}; D.pdaEst = D.pdaEst || {}; D.ventaMap = D.ventaMap || {}; D.ventasU = D.ventasU || {};
 const EST_PDA = ['Pendiente', 'Visitado', 'Aceptó', 'No aceptó', 'Cerrado'];
 const MOT_PDA = {C: 'Conquistar', R: 'Recuperar', D: 'Distribuir'};
 const todos1 = () => new Uint8Array(P.length).fill(1);
@@ -1377,17 +1382,37 @@ function compro(spec, cid, mes, IM){
   return false;
 }
 const mesesPlan = p => Object.keys(D.ventas).filter(m => !p.desde || m >= p.desde).sort();
+const MESES_LARGO = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+function mesDelCenso(cid){
+  const s = SINT(UP(CNAME[cid] || '')), y = (s.match(/(20\d{2})/) || [])[1];
+  const k = MESES_LARGO.findIndex(m => s.includes(m) || (m === 'SEPTIEMBRE' && s.includes('SETIEMBRE')));
+  return y && k >= 0 ? y + '-' + String(k + 1).padStart(2, '0') : null;
+}
+function hlObj(spec, cid, mes, IM){
+  const c = (D.ventas[mes] || {})[cid]; if (!c) return 0;
+  let t = 0;
+  for (const [k, q] of Object.entries(c)){
+    if (!(q > 0)) continue;
+    const seg = k.startsWith('~SEG:') ? k.slice(5) : (IM[k] || {}).seg;
+    if (spec === 'EMP:CMQ' || (spec.startsWith('SEG:') && seg === spec.slice(4)) || (spec.startsWith('MAR:') && k === spec.slice(4))) t += q;
+  }
+  return t;
+}
+const TEND_UMBRAL = 0.10;   // ±10% contra el censo para decir que creció o cayó
 function seguimientoPlan(p){
-  const spec = objCompra(p), IM = infoMarcas(), meses = mesesPlan(p), est = (D.pdaEst || {})[p.id] || {};
+  const spec = objCompra(p), IM = infoMarcas(), est = (D.pdaEst || {})[p.id] || {};
   const idx = new Map(P.map((x, i) => [x.id, i]));
   const pb = p.cliBase || p.base, cierre = pb && pb !== ACT && CIDS.includes(pb);
-  let somN = null, objN = null, objB = null;
+  const mc = mesDelCenso(pb);
+  const todosMeses = Object.keys(D.ventas).sort();
+  const meses = todosMeses.filter(m => p.desde ? m >= p.desde : !mc || m > mc);       // avance
+  const ref = todosMeses.filter(m => !meses.includes(m));                              // referencia (antes del censo)
+  const mesesHL = meses.filter(m => D.ventasU[m] === 'HL'), refHL = ref.filter(m => D.ventasU[m] === 'HL');
   const pred = spec === 'EMP:CMQ' ? m => m.empresa === 'CMQ' : spec.startsWith('SEG:') ? m => m.segmento === spec.slice(4) && m.empresa === 'CMQ' : m => m.marca === spec.slice(4);
-  // ¿el cliente ya tenía el objetivo en el censo de partida? (así se separa "lo incorporó" de "ya lo compraba")
-  if (pb && CIDS.includes(pb)) sinFiltroSeg(() => { const ob0 = pdvTarget(pb, todos1(), pred); objB = i => ob0[i] > 0; });
+  let objB = null, hlB = null, somN = null, objN = null;
+  if (pb && CIDS.includes(pb)) sinFiltroSeg(() => { const ob0 = pdvTarget(pb, todos1(), pred); objB = i => ob0[i] > 0; hlB = i => ob0[i]; });
   if (cierre) sinFiltroSeg(() => {
-    const ok = todos1(), tot = pdvTot(ACT, ok, false), cmq = pdvTarget(ACT, ok, m => m.empresa === 'CMQ');
-    const ob = pdvTarget(ACT, ok, pred);
+    const ok = todos1(), tot = pdvTot(ACT, ok, false), cmq = pdvTarget(ACT, ok, m => m.empresa === 'CMQ'), ob = pdvTarget(ACT, ok, pred);
     somN = i => tot[i] > 0 ? cmq[i] / tot[i] : null; objN = i => tot[i] > 0 ? ob[i] > 0 : null;
   });
   const filas = (p.cli || []).map(([id, som0, comp0, mot]) => {
@@ -1395,15 +1420,35 @@ function seguimientoPlan(p){
     const porMes = meses.map(m => compro(spec, id, m, IM));
     const r = {id, i, pp, som0, comp0, mot, e, porMes, compro: porMes.some(x => x === true)};
     r.tenia = objB && i != null ? objB(i) : null; r.nuevo = r.tenia === false && r.compro;
+    r.hlCenso = hlB && i != null ? hlB(i) : null;
+    r.hlMes = mesesHL.map(m => hlObj(spec, id, m, IM)); r.hlRef = refHL.map(m => hlObj(spec, id, m, IM));
+    r.hlProm = mesesHL.length ? r.hlMes.reduce((a, b) => a + b, 0) / mesesHL.length : null;
+    if (r.hlProm != null && r.hlCenso != null){
+      r.dHL = r.hlProm - r.hlCenso;
+      r.tend = r.hlCenso > 0 ? (r.hlProm > r.hlCenso * (1 + TEND_UMBRAL) ? 'Creció' : r.hlProm < r.hlCenso * (1 - TEND_UMBRAL) ? 'Cayó' : 'Igual')
+                             : (r.hlProm > 0 ? 'Creció' : 'Sin venta');
+    }
     if (cierre && i != null){ r.somN = somN(i); r.dSom = r.somN == null || som0 == null ? null : r.somN - som0; r.objN = objN(i); }
     return r;
   });
-  const n = filas.length, ult = meses[meses.length - 1];
-  const res = {spec, meses, cierre, filas, n,
+  const n = filas.length, ult = meses[meses.length - 1], suma = f => filas.reduce((a, r) => a + (f(r) || 0), 0);
+  const res = {spec, meses, ref, mesesHL, refHL, mc, pb, cierre, filas, n,
     compraron: filas.filter(r => r.compro).length,
     ultMes: ult, compraronUlt: ult ? filas.filter(r => r.porMes[r.porMes.length - 1] === true).length : 0,
     trabajados: filas.filter(r => r.e.e && r.e.e !== 'Pendiente').length,
-    sinObj: filas.filter(r => r.tenia === false).length, incorporaron: filas.filter(r => r.nuevo).length, pb};
+    sinObj: filas.filter(r => r.tenia === false).length, incorporaron: filas.filter(r => r.nuevo).length};
+  if (mesesHL.length){
+    res.hlCenso = suma(r => r.hlCenso); res.hlProm = suma(r => r.hlProm);
+    res.hlMes = mesesHL.map((m, j) => suma(r => r.hlMes[j])); res.hlRef = refHL.map((m, j) => suma(r => r.hlRef[j]));
+    res.tend = {Creció: 0, Igual: 0, Cayó: 0, 'Sin venta': 0}; filas.forEach(r => { if (r.tend) res.tend[r.tend]++; });
+    const porSup = {};
+    filas.forEach(r => {
+      const k = r.pp ? r.pp.sup : '(sin supervisor)', o = porSup[k] = porSup[k] || {k, n: 0, hlCenso: 0, hlProm: 0, Creció: 0, Igual: 0, Cayó: 0, 'Sin venta': 0, compraron: 0};
+      o.n++; o.hlCenso += r.hlCenso || 0; o.hlProm += r.hlProm || 0; if (r.tend) o[r.tend]++; if (r.compro) o.compraron++;
+    });
+    res.porSup = Object.values(porSup).sort((a, b) => b.hlCenso - a.hlCenso);
+    res.foco = filas.filter(r => r.tend && r.tend !== 'Creció').sort((a, b) => (b.comp0 || 0) - (a.comp0 || 0)).slice(0, 20);
+  }
   if (cierre){
     const c = filas.filter(r => r.somN != null);
     res.censados = c.length; res.subieron = c.filter(r => r.dSom > 0.0001).length; res.conObj = c.filter(r => r.objN).length;
@@ -1417,17 +1462,21 @@ function guardarEst(pid, cid, campo, val){
   if (CLOUD) FBDB.ref(FB_ROOT + '/pdaest/' + pid + '/' + k).set(o).catch(e => alert('No se pudo guardar: ' + e.message));
   else saveCfg();
 }
+const fHL1 = v => v == null || isNaN(v) ? '–' : nf1.format(v);
+const fVar = (a, b) => b > 0 && a != null ? `<span class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : ''}${nf0.format((a / b - 1) * 100)}%</span>` : '';
 function resumenPlanHtml(p){
   if (!p.cli || !p.cli.length) return '';
   const s = seguimientoPlan(p), pc = (a, b) => b ? ' (' + nf0.format(a / b * 100) + '%)' : '';
+  const obj = esc(compraLab(s.spec));
   return `<div class="kpis-pl">
-    <div class="kpi"><div class="lab">Clientes del plan</div><div class="val">${fHL(s.n)}</div></div>
-    ${s.sinObj ? `<div class="kpi" style="border-color:var(--good)"><div class="lab">Incorporaron ${esc(compraLab(s.spec))}</div><div class="val">${s.meses.length ? fHL(s.incorporaron) + ' de ' + fHL(s.sinObj) + pc(s.incorporaron, s.sinObj) : '–'}</div><div class="muted" style="font-size:11px">no lo tenían en ${esc(s.pb || '')} y lo compraron después</div></div>` : ''}
-    <div class="kpi"><div class="lab">Compraron ${esc(compraLab(s.spec))}</div><div class="val">${s.meses.length ? fHL(s.compraron) + pc(s.compraron, s.n) : '–'}</div><div class="muted" style="font-size:11px">${s.meses.length ? 'en ' + s.meses.map(fMes).join(', ') : 'sin ventas cargadas'}</div></div>
-    ${s.ultMes ? `<div class="kpi"><div class="lab">Compraron en ${fMes(s.ultMes)}</div><div class="val">${fHL(s.compraronUlt)}${pc(s.compraronUlt, s.n)}</div></div>` : ''}
+    <div class="kpi"><div class="lab">Clientes del plan</div><div class="val">${fHL(s.n)}</div><div class="muted" style="font-size:11px">foto de ${esc(s.pb || '')}</div></div>
+    ${s.mesesHL.length ? `<div class="kpi" style="border-color:var(--accent)"><div class="lab">HL de ${obj} · promedio mensual</div><div class="val">${fHL1(s.hlProm)} <span style="font-size:13px">vs ${fHL1(s.hlCenso)} en ${esc(s.pb)}</span></div><div style="font-size:12px">${fVar(s.hlProm, s.hlCenso)} <span class="muted">· ${s.mesesHL.map((m, j) => fMes(m) + ': ' + fHL1(s.hlMes[j])).join(' · ')}${s.refHL.length ? ' · referencia ' + s.refHL.map((m, j) => fMes(m) + ': ' + fHL1(s.hlRef[j])).join(' · ') : ''}</span></div></div>
+    <div class="kpi"><div class="lab">Clientes vs el censo (±${TEND_UMBRAL * 100}%)</div><div class="val" style="font-size:15px"><span class="up">▲ ${s.tend.Creció}</span> · ${s.tend.Igual} = · <span class="down">▼ ${s.tend.Cayó}</span>${s.tend['Sin venta'] ? ` · <span class="muted">${s.tend['Sin venta']} sin venta</span>` : ''}</div><div class="muted" style="font-size:11px">crecieron · igual · cayeron</div></div>` : ''}
+    ${s.sinObj ? `<div class="kpi" style="border-color:var(--good)"><div class="lab">Incorporaron ${obj}</div><div class="val">${s.meses.length ? fHL(s.incorporaron) + ' de ' + fHL(s.sinObj) + pc(s.incorporaron, s.sinObj) : '–'}</div><div class="muted" style="font-size:11px">no lo tenían en ${esc(s.pb || '')} y lo compraron después</div></div>` : ''}
+    <div class="kpi"><div class="lab">Compraron ${obj}</div><div class="val">${s.meses.length ? fHL(s.compraron) + pc(s.compraron, s.n) : '–'}</div><div class="muted" style="font-size:11px">${s.meses.length ? 'en ' + s.meses.map(fMes).join(', ') : 'sin ventas cargadas después del censo'}</div></div>
     <div class="kpi"><div class="lab">Trabajados (estado cargado)</div><div class="val">${fHL(s.trabajados)}${pc(s.trabajados, s.n)}</div></div>
     ${s.cierre ? `<div class="kpi" style="border-color:var(--accent)"><div class="lab">Cierre ${esc(CNAME[ACT])}: subieron su SOM</div><div class="val">${fHL(s.subieron)} de ${fHL(s.censados)}${pc(s.subieron, s.censados)}</div><div class="muted" style="font-size:11px">con el objetivo en el censo: ${fHL(s.conObj)}</div></div>` : ''}
-  </div>`;
+  </div>${s.meses.length && !s.mesesHL.length ? '<p class="muted" style="font-size:12px;margin:6px 0 0">Para comparar HL contra el censo, cargá la venta con una columna de hectolitros.</p>' : ''}`;
 }
 function verClientesPlan(pid){
   const p = (D.planes || []).find(x => x.id === pid); if (!p) return;
@@ -1438,27 +1487,49 @@ function verClientesPlan(pid){
   if (st.solo === 'sinobj') filas = filas.filter(r => r.tenia === false);
   if (st.solo === 'nocompro') filas = filas.filter(r => !r.compro);
   if (st.solo === 'compro') filas = filas.filter(r => r.compro);
+  if (st.solo === 'cayo') filas = filas.filter(r => r.tend === 'Cayó' || r.tend === 'Igual');
+  if (st.solo === 'crecio') filas = filas.filter(r => r.tend === 'Creció');
   if (st.solo === 'pend') filas = filas.filter(r => !r.e.e || r.e.e === 'Pendiente');
   const supsP = [...new Set(s.filas.map(r => r.pp && r.pp.sup).filter(Boolean))].sort();
   const mot = m => (m || '').split('').map(c => `<span class="pill" style="font-size:10.5px">${MOT_PDA[c] || c}</span>`).join(' ');
+  const pb = esc(s.pb || ''), hayHL = s.mesesHL.length > 0;
+  const celdaMes = (r, j, m) => {
+    const k = s.mesesHL.indexOf(m);
+    if (k >= 0){ const v = r.hlMes[k]; return v > 0 ? `<span class="si">${fHL1(v)}</span>` : '<span class="no">–</span>'; }
+    return r.porMes[j] === true ? '<span class="si">✔</span>' : r.porMes[j] === false ? '<span class="no">–</span>' : '';
+  };
+  const tendCell = r => !r.tend ? '–' : r.tend === 'Creció' ? '<span class="up">▲ Creció</span>' : r.tend === 'Cayó' ? '<span class="down">▼ Cayó</span>' : r.tend === 'Igual' ? '= Igual' : '<span class="muted">Sin venta</span>';
   const cols = [
     {lab: 'Cliente', l: true, w: 190, fn: r => (r.pp ? esc(r.pp.rs) : '<i>no está en la base</i>') + `<br><span class="muted" style="font-size:11px">${r.id}</span>`},
     {lab: 'Supervisor', l: true, w: 118, fn: r => r.pp ? esc(r.pp.sup) : ''}, {lab: 'Promotor', l: true, w: 130, fn: r => r.pp ? esc(r.pp.ven) : ''},
     {lab: 'Motivo', l: true, w: 95, fn: r => mot(r.mot)},
-    {lab: 'SOM<br>' + esc(p.cliBase || p.base || ''), bl: true, fn: r => fP(r.som0)}, {lab: 'HL<br>compet.', fn: r => fHL(r.comp0)},
-    {lab: 'Objetivo<br>en ' + esc(p.cliBase || p.base || ''), fn: r => r.tenia == null ? '–' : r.tenia ? '<span class="si">✔</span>' : '<span class="no">no tenía</span>'},
-    ...s.meses.map((m, j) => ({lab: fMes(m), bl: j === 0, fn: r => r.porMes[j] === true ? '<span class="si">✔</span>' : r.porMes[j] === false ? '<span class="no">–</span>' : ''})),
-    {lab: '¿Compró?', bl: true, fn: r => s.meses.length ? (r.nuevo ? '<span class="si">SÍ · NUEVO</span>' : r.compro ? '<span class="si">SÍ</span>' : '<span class="no">NO</span>') : '–'},
+    {lab: 'SOM<br>' + pb, bl: true, fn: r => fP(r.som0)}, {lab: 'HL<br>compet.', fn: r => fHL1(r.comp0)},
+    {lab: 'HL objetivo<br>censo ' + pb, fn: r => r.hlCenso == null ? '–' : r.hlCenso > 0 ? fHL1(r.hlCenso) : '<span class="no">no tenía</span>'},
+    ...s.refHL.map((m, j) => ({lab: fMes(m) + '<br><span class="muted">ref.</span>', bl: j === 0, fn: r => r.hlRef[j] > 0 ? `<span class="muted">${fHL1(r.hlRef[j])}</span>` : '<span class="no">–</span>'})),
+    ...s.meses.map((m, j) => ({lab: fMes(m), bl: j === 0, fn: r => celdaMes(r, j, m)})),
+    ...(hayHL ? [{lab: 'Prom.<br>vendido', bl: true, fn: r => fHL1(r.hlProm)}, {lab: 'vs censo', fn: r => r.hlCenso > 0 ? fVar(r.hlProm, r.hlCenso) : ''}, {lab: 'Tendencia', l: true, fn: tendCell}] : []),
+    {lab: '¿Compró?', bl: !hayHL, fn: r => s.meses.length ? (r.nuevo ? '<span class="si">SÍ · NUEVO</span>' : r.compro ? '<span class="si">SÍ</span>' : '<span class="no">NO</span>') : '–'},
     ...(s.cierre ? [{lab: 'SOM<br>' + esc(ACT), bl: true, fn: r => fP(r.somN)}, {lab: 'Δ SOM', fn: r => fPP(r.dSom)}, {lab: 'Objetivo<br>en censo', fn: r => r.objN == null ? '–' : r.objN ? '<span class="si">✔</span>' : '<span class="no">–</span>'}] : []),
     {lab: 'Estado', l: true, bl: true, fn: r => `<select class="est" data-pe="${esc(r.id)}" data-c="e">${EST_PDA.map(e => `<option ${e === (r.e.e || 'Pendiente') ? 'selected' : ''}>${e}</option>`).join('')}</select>`},
     {lab: 'Comentario', l: true, w: 220, fn: r => `<input class="com" data-pe="${esc(r.id)}" data-c="c" value="${esc(r.e.c || '')}" placeholder="Qué se hizo / qué dijo">` + (r.e.por ? `<div class="muted" style="font-size:10.5px">${esc(r.e.por)} · ${new Date(r.e.ts).toLocaleDateString('es-AR')}</div>` : '')},
   ];
+  const tSup = hayHL ? `<h3 style="font-size:14px;margin:14px 0 6px">Por supervisor</h3>${table('tSegSup', [
+      {lab: 'Supervisor', l: true, fn: o => esc(o.k)}, {lab: 'Clientes', fn: o => fHL(o.n)},
+      {lab: 'HL censo ' + pb, bl: true, fn: o => fHL1(o.hlCenso)}, {lab: 'HL prom. vendido', fn: o => fHL1(o.hlProm)}, {lab: 'vs censo', fn: o => fVar(o.hlProm, o.hlCenso)},
+      {lab: '▲ Crecieron', bl: true, fn: o => `<span class="up">${o.Creció}</span>`}, {lab: '= Igual', fn: o => o.Igual}, {lab: '▼ Cayeron', fn: o => `<span class="down">${o.Cayó}</span>`}, {lab: 'Sin venta', fn: o => o['Sin venta']},
+      {lab: 'Compraron', bl: true, fn: o => fHL(o.compraron)}], s.porSup, {nosort: true, compact: true})}` : '';
+  const tFoco = hayHL && s.foco.length ? `<h3 style="font-size:14px;margin:14px 0 6px">Lista de foco: más competencia y todavía no crecieron</h3>${table('tSegFoco', [
+      {lab: 'Cliente', l: true, fn: r => esc(r.pp ? r.pp.rs : r.id) + ` <span class="muted" style="font-size:11px">${r.id}</span>`}, {lab: 'Supervisor', l: true, fn: r => r.pp ? esc(r.pp.sup) : ''}, {lab: 'Promotor', l: true, fn: r => r.pp ? esc(r.pp.ven) : ''},
+      {lab: 'HL compet. ' + pb, bl: true, fn: r => `<b>${fHL1(r.comp0)}</b>`}, {lab: 'HL objetivo censo', fn: r => fHL1(r.hlCenso)}, {lab: 'Prom. vendido', fn: r => fHL1(r.hlProm)}, {lab: 'Tendencia', l: true, fn: tendCell}, {lab: 'Estado', l: true, fn: r => esc(r.e.e || 'Pendiente')}],
+      s.foco, {nosort: true, compact: true})}` : '';
   $('#dlg').classList.add('ancho');
   $('#dlgT').textContent = `${p.titulo} — seguimiento de ${s.n} clientes`;
   $('#dlgB').innerHTML = `${resumenPlanHtml(p)}
-    <p class="desc" style="margin-top:10px">"Compró" = el cliente compró <b>${esc(compraLab(s.spec))}</b> en algún mes cargado desde ${p.desde ? fMes(p.desde) : 'el inicio'} (se marca solo con la base de ventas). El estado y el comentario los carga el equipo y quedan firmados.${s.cierre ? ` Las columnas de ${esc(CNAME[ACT])} comparan contra la foto de ${esc(CNAME[p.cliBase || p.base] || p.cliBase || p.base)} tomada al armar el plan.` : ''}</p>
+    <p class="desc" style="margin-top:10px">La base es lo que cada cliente declaró en el censo de <b>${esc(CNAME[s.pb] || s.pb || '')}</b> (HL mensuales de <b>${esc(compraLab(s.spec))}</b>). ${s.ref.length ? `Los meses hasta ${s.mc ? fMes(s.mc) : 'el censo'} se muestran como referencia y no cuentan como avance. ` : ''}"Creció / Cayó" compara el promedio mensual vendido después del censo contra el censo (±${TEND_UMBRAL * 100}%). El estado y el comentario los carga el equipo y quedan firmados.</p>
+    ${tSup}${tFoco}
+    <h3 style="font-size:14px;margin:14px 0 6px">Todos los clientes del plan</h3>
     <div class="tools"><label class="muted" style="font-size:12px">Supervisor</label><select id="pdSup"><option value="">Todos</option>${supsP.map(x => `<option ${x === st.sup ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-    <label class="muted" style="font-size:12px">Mostrar</label><select id="pdSolo">${[['', 'Todos'], ['sinobj', 'Los que no lo tenían en el censo'], ['nocompro', 'Los que todavía no compraron'], ['compro', 'Los que compraron'], ['pend', 'Pendientes de trabajar']].map(([v, l]) => `<option value="${v}" ${v === st.solo ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <label class="muted" style="font-size:12px">Mostrar</label><select id="pdSolo">${[['', 'Todos'], ...(hayHL ? [['cayo', 'Los que no crecieron'], ['crecio', 'Los que crecieron']] : []), ['sinobj', 'Los que no lo tenían en el censo'], ['nocompro', 'Los que todavía no compraron'], ['compro', 'Los que compraron'], ['pend', 'Pendientes de trabajar']].map(([v, l]) => `<option value="${v}" ${v === st.solo ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <span class="muted" style="font-size:12px">${fHL(filas.length)} clientes</span></div>
     ${table('tSegPlan', cols, filas, {nosort: true, compact: true})}`;
   $('#pdSup').onchange = e => { st.sup = e.target.value; verClientesPlan(pid); };
@@ -1497,7 +1568,9 @@ function leerVentas(A, mesSel){
   const cMar = desc(busca(/^MARCA$/, /MARCA/, /ARTICULO|PRODUCTO|DESCRIPCION ART/));
   const cSeg = desc(busca(/SEGMENTO/)), cNeg = desc(busca(/NEGOCIO/));
   const cPer = busca(/DESCRIPCION PERIODO|FECHA DEL PERIODO/, /PERIODO/, /^MES$|^MES /, /FECHA/);
-  const cQty = busca(/^HL$|HECTOLITRO/, /CANTIDAD/, /BULTOS/, /LITROS/, /VOLUMEN|UNIDADES/);
+  const cQty = busca(/^HL$|^HL |HECTOLITRO|\bHL\b/, /LITRO/, /CANTIDAD/, /BULTOS/, /VOLUMEN|UNIDADES/);
+  const unidad = cQty >= 0 && S.ventaUni === 'HL' ? 'HL' : cQty >= 0 && S.ventaUni === 'LITROS' ? 'LITROS' : cQty < 0 ? 'SIN CANTIDAD' : /^HL$|^HL |HECTOLITRO|\bHL\b/.test(H[cQty]) ? 'HL' : /LITRO/.test(H[cQty]) ? 'LITROS' : 'BULTOS';
+  const fq = unidad === 'LITROS' ? 0.01 : 1;
   if (cMar < 0 && cSeg < 0) throw new Error('No encontré una columna de Marca (o Segmento) para saber qué compró cada cliente.');
   const X = window.XLSX;
   const mesDe = v => {
@@ -1521,7 +1594,7 @@ function leerVentas(A, mesSel){
     const cid = canonId(r[cCli]); if (!cid) continue;
     filas++;
     if (cNeg >= 0 && r[cNeg] != null && !/CERVEZ|CZA/.test(SINT(UP(r[cNeg])))) continue;
-    const q = cQty >= 0 ? (typeof r[cQty] === 'number' ? r[cQty] : parseFloat(String(r[cQty] ?? '').replace(/\./g, '').replace(',', '.'))) : 1;
+    const q = (cQty >= 0 ? (typeof r[cQty] === 'number' ? r[cQty] : parseFloat(String(r[cQty] ?? '').replace(/\./g, '').replace(',', '.'))) : 1) * fq;
     if (!(q > 0)) continue;
     let key = null;
     const nom = cMar >= 0 ? SINT(UP(r[cMar])).replace(/^CERVEZAS? /, '') : '';
@@ -1539,10 +1612,10 @@ function leerVentas(A, mesSel){
     const mes = (cPer >= 0 ? mesDe(r[cPer]) : null) || mesSel;
     if (!mes){ sinMes++; continue; }
     const o = (out[mes] = out[mes] || {}), c = (o[cid] = o[cid] || {});
-    c[key] = Math.round(((c[key] || 0) + q) * 1000) / 1000; usadas++;
+    c[key] = Math.round(((c[key] || 0) + q) * 10000) / 10000; usadas++;
   }
   if (!Object.keys(out).length) throw new Error(sinMes ? 'El archivo no trae el mes: elegilo en "Mes de la venta" y volvé a subirlo.' : 'No encontré ventas de cerveza CMQ en el archivo.');
-  return {out, sinMap, filas, usadas, sinMes, cols: {cliente: H[cCli], marca: cMar >= 0 ? H[cMar] : '-', segmento: cSeg >= 0 ? H[cSeg] : '-', periodo: cPer >= 0 ? H[cPer] : '-', cantidad: cQty >= 0 ? H[cQty] : '-'}};
+  return {out, sinMap, filas, usadas, sinMes, unidad: unidad === 'LITROS' ? 'HL' : unidad, cols: {cliente: H[cCli], marca: cMar >= 0 ? H[cMar] : '-', segmento: cSeg >= 0 ? H[cSeg] : '-', periodo: cPer >= 0 ? H[cPer] : '-', cantidad: cQty >= 0 ? H[cQty] : '-'}};
 }
 async function subirVentas(file){
   const msg = $('#vtMsg'); if (!file) return;
@@ -1557,14 +1630,15 @@ async function subirVentas(file){
     }
     if (!res) throw err || new Error('No pude leer el archivo.');
     for (const [mes, o] of Object.entries(res.out)){
-      D.ventas[mes] = o;
-      if (CLOUD) await FBDB.ref(FB_ROOT + '/ventas/' + mes).set(JSON.stringify(o));
+      D.ventas[mes] = o; D.ventasU[mes] = res.unidad;
+      if (CLOUD) await FBDB.ref(FB_ROOT + '/ventas/' + mes).set(JSON.stringify({u: res.unidad, c: o}));
     }
     if (!CLOUD) saveCfg();
     S.ventaSinMap = Object.entries(res.sinMap).sort((a, b) => b[1] - a[1]).slice(0, 40);
     const meses = Object.keys(res.out).sort();
     S.vtMsg = `<span class="up">Listo:</span> ${meses.map(fMes).join(', ')} · ${fHL(res.usadas)} filas de cerveza CMQ de ${fHL(res.filas)} leídas · ${fHL(meses.reduce((a, m) => a + Object.keys(res.out[m]).length, 0))} clientes con compra.
       <br><span class="muted">Columnas usadas: cliente = ${esc(res.cols.cliente)}, marca = ${esc(res.cols.marca)}, segmento = ${esc(res.cols.segmento)}, mes = ${esc(res.cols.periodo)}, cantidad = ${esc(res.cols.cantidad)}.</span>
+      ${res.unidad === 'HL' ? '<br>La cantidad está en <b>HL</b>: se usa para comparar contra el censo.' : `<br><span class="down">Ojo: la cantidad no está en HL (columna "${esc(res.cols.cantidad)}"). Sirve para "compró / no compró", pero no para comparar HL contra el censo. Exportá la venta con una columna de hectolitros o litros.</span>`}
       ${S.ventaSinMap.length ? '<br>Hay marcas que no reconocí (abajo). Si alguna es cerveza CMQ, asignala y el archivo se vuelve a procesar solo.' : ''}`;
     render();
   } catch (e){ S.vtMsg = '<span class="down">Error: ' + esc(e.message) + '</span>'; render(); }
@@ -1575,8 +1649,9 @@ function ventasCardHtml(){
   return `<div class="card"><h2>Ventas mensuales (seguimiento del PDA)</h2>
     <p class="desc">Subí la venta del mes (Excel o CSV exportado de Chess o Power BI). Tiene que tener una columna de <b>cliente</b> (código) y una de <b>marca</b> (o segmento); si trae <b>período/fecha</b> la toma de ahí, si no, elegí el mes acá. Solo se usa la cerveza CMQ, y con eso se marca solo qué clientes de cada plan compraron. Si el Excel es muy pesado (cientos de miles de filas), conviene resumirlo antes a cliente × marca × mes.</p>
     <div class="row"><div class="drop"><b>Base de ventas</b><br><label class="muted" style="font-size:12px">Mes de la venta (si el archivo no lo trae):</label> <input type="month" id="vtMes" value="${esc(S.ventaMes || '')}"><br>
+      <label class="muted" style="font-size:12px">La cantidad del archivo está en:</label> <select id="vtUni">${[['', 'Detectar por el encabezado'], ['HL', 'HL (hectolitros)'], ['LITROS', 'Litros'], ['BULTOS', 'Bultos']].map(([v, l]) => `<option value="${v}" ${v === (S.ventaUni || '') ? 'selected' : ''}>${l}</option>`).join('')}</select><br>
       <input type="file" id="upVentas" accept=".xlsx,.xls,.csv" style="margin-top:6px"></div>
-    <div class="drop"><b>Meses cargados</b><br>${meses.length ? meses.map(m => `<span class="pill" style="margin:2px">${fMes(m)} · ${fHL(Object.keys(D.ventas[m]).length)} clientes <a href="#" data-delmes="${m}" title="Borrar este mes" style="color:var(--bad);text-decoration:none">✕</a></span>`).join(' ') : '<span class="muted">Todavía ninguno.</span>'}</div></div>
+    <div class="drop"><b>Meses cargados</b><br>${meses.length ? meses.map(m => `<span class="pill" style="margin:2px">${fMes(m)} · ${fHL(Object.keys(D.ventas[m]).length)} clientes${D.ventasU[m] === 'HL' ? ' · HL' : D.ventasU[m] ? ' · <span class="down">' + esc(D.ventasU[m].toLowerCase()) + '</span>' : ''} <a href="#" data-delmes="${m}" title="Borrar este mes" style="color:var(--bad);text-decoration:none">✕</a></span>`).join(' ') : '<span class="muted">Todavía ninguno.</span>'}</div></div>
     <div id="vtMsg" class="desc" style="margin-top:10px">${S.vtMsg || ''}</div>
     ${S.ventaSinMap && S.ventaSinMap.length ? `<div class="tw" style="max-height:260px;margin-top:8px"><table><thead><tr><th class="l">Marca en la venta (no reconocida)</th><th>Cantidad</th><th class="l">Es…</th></tr></thead><tbody>
       ${S.ventaSinMap.map(([n, q]) => `<tr><td class="l">${esc(n)}</td><td>${fHL(q)}</td><td class="l"><select data-vmap="${esc(n)}"><option value="">No es cerveza CMQ (ignorar)</option>${cmq.map(m => `<option>${esc(m)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>` : ''}
@@ -1585,11 +1660,13 @@ function ventasCardHtml(){
 function bindVentas(){
   const f = $('#upVentas'); if (!f) return;
   $('#vtMes').onchange = e => { S.ventaMes = e.target.value; };
+  $('#vtUni').onchange = e => { S.ventaUni = e.target.value; try { localStorage.setItem('censoVentaUni', S.ventaUni); } catch(_){} };
+  if (S.ventaUni == null){ try { S.ventaUni = localStorage.getItem('censoVentaUni') || ''; } catch(_){ S.ventaUni = ''; } $('#vtUni').value = S.ventaUni; }
   f.onchange = e => subirVentas(e.target.files[0]);
   document.querySelectorAll('[data-delmes]').forEach(a => a.onclick = async e => {
     e.preventDefault(); const m = a.dataset.delmes;
     if (!confirm('¿Borrar la venta de ' + fMes(m) + '?')) return;
-    delete D.ventas[m]; if (CLOUD) await FBDB.ref(FB_ROOT + '/ventas/' + m).remove(); else saveCfg(); render();
+    delete D.ventas[m]; delete D.ventasU[m]; if (CLOUD) await FBDB.ref(FB_ROOT + '/ventas/' + m).remove(); else saveCfg(); render();
   });
   document.querySelectorAll('[data-vmap]').forEach(s => s.onchange = () => {
     D.ventaMap[s.dataset.vmap] = s.value; saveCfg();

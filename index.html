@@ -98,6 +98,11 @@ dialog .db{padding:14px 16px;max-height:75vh;overflow:auto}
 .firma{font-size:11px;color:var(--ink3);margin-top:3px}
 #boot{padding:40px 20px;text-align:center;color:var(--ink2)}
 #userDlg .db button{margin:4px}
+.si{color:var(--good);font-weight:700}.no{color:var(--ink3)}
+.kpis-pl{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.kpis-pl .kpi{padding:6px 12px}.kpis-pl .kpi .val{font-size:18px}
+#dlg.ancho{max-width:min(1400px,97vw)}
+select.est{padding:2px 4px;font-size:12px} input.com{width:100%;min-width:160px;font-size:12px;padding:3px 6px}
 </style>
 </head>
 <body>
@@ -268,6 +273,9 @@ function loadCfg(){
       if (c.subMap) D.subMap = c.subMap;
       if (c.notas) D.notas = c.notas;
       if (c.planes) D.planes = c.planes;
+      if (c.pdaEst) D.pdaEst = c.pdaEst;
+      if (c.ventaMap) D.ventaMap = c.ventaMap;
+      if (c.ventas) D.ventas = c.ventas;
       dirty = true;
     } catch(e){}
   } else {
@@ -293,7 +301,7 @@ function rebuildLookups(){
 function saveCfg(){
   if (CLOUD){ clearTimeout(saveCfg._t); saveCfg._t = setTimeout(cloudSync, 350); return; }
   dirty = true;
-  lsSet(CFG_KEY, JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, notas: D.notas || {}, planes: D.planes || []}));
+  lsSet(CFG_KEY, JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, notas: D.notas || {}, planes: D.planes || [], pdaEst: D.pdaEst || {}, ventaMap: D.ventaMap || {}, ventas: D.ventas || {}}));
 }
 
 
@@ -302,7 +310,7 @@ const SRV = {cfg: null, notas: {}, planes: {}};      // lo último que sabemos q
 const NOTA_META = {};
 const fKey = k => String(k).replace(/[.#$\[\]\/]/g, '_');
 const ahora = () => new Date().toLocaleString('es-AR', {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'});
-const cfgJson = () => JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap});
+const cfgJson = () => JSON.stringify({maps: D.maps, venMap: D.venMap, subMap: D.subMap, ventaMap: D.ventaMap || {}});
 const planJson = p => { const {_por, _ts, ...r} = p; return JSON.stringify(r); };
 function aplicarCfg(c){
   try { c = typeof c === 'string' ? JSON.parse(c) : c; } catch(e){ return; }
@@ -310,6 +318,7 @@ function aplicarCfg(c){
   if (c.maps && c.maps.length === D.maps.length) D.maps = c.maps;
   if (c.venMap) D.venMap = c.venMap;
   if (c.subMap) D.subMap = c.subMap;
+  if (c.ventaMap) D.ventaMap = c.ventaMap;
 }
 function leerNotas(v){
   D.notas = {};
@@ -332,6 +341,12 @@ function cloudInit(){
   ref('planes').on('value', G(s => { if (saveCfg._t){ IGN.add('planes'); return; } const antes = JSON.stringify(D.planes.map(planJson)); leerPlanes(s.val()); if (JSON.stringify(D.planes.map(planJson)) !== antes) reRender(); }));
   ref('cfg').on('value', G(s => { const v = s.val(); if (!v || v === SRV.cfg) return; aplicarCfg(v); SRV.cfg = cfgJson(); buildFacts(); rebuildLookups(); reRender(); }));
   ref('meta/ver').on('value', G(s => { const v = s.val(); if (v && I.ver && v !== I.ver && v !== MI_VER) banner('Se cargó una base nueva del censo.', 'Actualizar'); }));
+  ref('pdaest').on('value', G(s => { D.pdaEst = s.val() || {}; reRender(); refrescarDlgPlan(); }));
+  ref('ventas').on('value', G(s => {
+    const v = s.val() || {}; D.ventas = {};
+    Object.entries(v).forEach(([mes, x]) => { try { D.ventas[mes] = JSON.parse(typeof x === 'string' ? x : Object.keys(x).sort().map(k => x[k]).join('')); } catch(e){} });
+    reRender(); refrescarDlgPlan();
+  }));
   FBDB.ref('.info/connected').on('value', G(s => { ONLINE = !!s.val(); pintarUsuario(); }));
   pedirUsuario();
 }
@@ -380,7 +395,7 @@ async function cloudSync(){
 }
 function estado(t){ document.querySelectorAll('.nubeEst').forEach(e => e.textContent = t); }
 async function publicarBase(){
-  const {notas, planes, ...base} = D;
+  const {notas, planes, pdaEst, ventas, ...base} = D;
   MI_VER = 'v' + Date.now();
   base.version = MI_VER;
   const up = {base: partir(JSON.stringify(base).replace(/<\//g, '<\\/')), cfg: cfgJson(), 'meta/ver': MI_VER, 'meta/por': USUARIO, 'meta/ts': Date.now()};
@@ -1239,7 +1254,15 @@ function planesAccion(){
         ${(p.avances || []).map((a, j) => `<tr><td class="l">${esc(a.fecha)}</td><td>${a.valor === '' || a.valor == null ? '–' : nf1.format(a.valor) + '%'}</td><td class="l" style="white-space:normal">${esc(a.com)}${a.por ? ` <span class="muted">— ${esc(a.por)}</span>` : ''}</td><td><button class="btn" data-delav="${i}:${j}" style="padding:2px 8px">✕</button></td></tr>`).join('')}
         <tr><td class="l"><input type="date" id="avF${i}"></td><td><input type="number" step="0.1" id="avV${i}" style="width:90px"></td><td class="l"><input type="text" id="avC${i}" placeholder="Ej: se visitaron 25 de 40 PDV, 12 con Stella" style="width:100%"></td><td><button class="btn" data-addav="${i}">Agregar</button></td></tr>
         </tbody></table></div>
-      ${CLOUD && p._por ? `<div class="firma">${firmaTxt({por: p._por, ts: p._ts})}</div>` : ''}<div class="tools" style="margin:10px 0 0">${p.univ ? `<button class="btn" data-verun="${i}">Ver clientes del plan</button>` : ''}<button class="btn" data-recalc="${i}">Tomar valor inicial de nuevo</button><button class="btn" data-delpl="${i}" style="color:var(--bad)">Eliminar plan</button></div></div>`;
+      <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><b style="font-size:13px">Clientes del plan</b>
+        ${p.cli && p.cli.length ? `<div class="row" style="gap:10px;align-items:flex-end;margin-top:6px">
+          <div class="f"><label>Cuenta como "compró" si compra</label><select data-pl="${i}" data-k="compra">${[['EMP:CMQ', 'Cualquier cerveza CMQ'], ...SEGMENTOS.filter(s => s !== 'SIN SEGMENTO').map(s => ['SEG:' + s, 'Segmento ' + s]), ...marcas.filter(m => (infoMarcas()[m] || {}).emp === 'CMQ').map(m => ['MAR:' + m, m])].map(([v, l]) => `<option value="${esc(v)}" ${v === objCompra(p) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+          <div class="f"><label>Contar ventas desde</label><input type="month" data-pl="${i}" data-k="desde" value="${esc(p.desde || '')}"></div>
+          <button class="btn pri" data-segpl="${esc(asegId(p))}">Ver y trabajar los ${fHL(p.cli.length)} clientes</button></div>${resumenPlanHtml(p)}`
+        : `<p class="muted" style="font-size:12px;margin:4px 0">Todavía no tiene una lista fija de clientes. Fijala para seguir cliente por cliente quién compró y comparar en el próximo censo.</p>
+          <div class="tools">${p.univ ? `<button class="btn pri" data-fijar="${i}" data-modo="univ">Fijar los clientes de este plan</button>` : ''}<button class="btn" data-fijar="${i}" data-modo="filtro">Fijar = universo PDA con los filtros de arriba</button></div>`}
+      </div>
+      ${CLOUD && p._por ? `<div class="firma">${firmaTxt({por: p._por, ts: p._ts})}</div>` : ''}<div class="tools" style="margin:10px 0 0"><button class="btn" data-recalc="${i}">Tomar valor inicial de nuevo</button><button class="btn" data-delpl="${i}" style="color:var(--bad)">Eliminar plan</button></div></div>`;
   };
   setTimeout(bindPlanes);
   return `<div class="card"><h2>2. Planes de acción propuestos</h2>
@@ -1255,7 +1278,9 @@ function planesAccion(){
   function bindPlanes(){
     document.querySelectorAll('[data-adopt]').forEach(b => b.onclick = () => {
       const p = props[+b.dataset.adopt];
-      D.planes.push({titulo: p.titulo, detalle: p.detalle, responsable: p.responsable || '', fecha: '', estado: 'Pendiente', ind: {...p.ind}, inicial: indicador(p.ind, ACT), base: ACT, meta: p.meta, univ: p.univ, avances: [], origen: 'propuesto'});
+      const np = {titulo: p.titulo, detalle: p.detalle, responsable: p.responsable || '', fecha: '', estado: 'Pendiente', ind: {...p.ind}, inicial: indicador(p.ind, ACT), base: ACT, meta: p.meta, univ: p.univ, avances: [], origen: 'propuesto',
+        cli: congelarClientes(univClientes(p.univ, todos1())), cliBase: ACT, desde: mesHoy()};
+      asegId(np); D.planes.push(np);
       saveCfg(); render();
     });
     const nuevo = $('#plNuevo'); if (nuevo) nuevo.onclick = () => {
@@ -1277,7 +1302,7 @@ function planesAccion(){
       else if (k === 'obj' || k === 'sup'){ p.ind[k] = el.value; p.inicial = indicador(p.ind, ACT); p.base = ACT; }
       else if (k === 'meta') p.meta = el.value === '' ? null : (+el.value) / 100;
       else p[k] = el.value;
-      saveCfg(); if (['met', 'obj', 'sup', 'meta', 'estado'].includes(k)) render();
+      saveCfg(); if (['met', 'obj', 'sup', 'meta', 'estado', 'compra', 'desde'].includes(k)) render();
     });
     document.querySelectorAll('[data-addav]').forEach(b => b.onclick = () => {
       const i = +b.dataset.addav, f = $('#avF' + i).value || new Date().toLocaleDateString('en-CA'), v = $('#avV' + i).value, c = $('#avC' + i).value.trim();
@@ -1287,6 +1312,14 @@ function planesAccion(){
     });
     document.querySelectorAll('[data-delav]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.delav.split(':').map(Number); D.planes[i].avances.splice(j, 1); saveCfg(); render(); });
     document.querySelectorAll('[data-delpl]').forEach(b => b.onclick = () => { if (!confirm('¿Eliminar este plan?')) return; D.planes.splice(+b.dataset.delpl, 1); saveCfg(); render(); });
+    document.querySelectorAll('[data-segpl]').forEach(b => b.onclick = () => { S.plDlg = null; verClientesPlan(b.dataset.segpl); });
+    document.querySelectorAll('[data-fijar]').forEach(b => b.onclick = () => {
+      const p = D.planes[+b.dataset.fijar];
+      const idx = b.dataset.modo === 'univ' ? univClientes(p.univ, todos1()) : pdaCalc(pdvMask()).map(r => r.i);
+      if (!idx.length){ alert('No hay clientes para fijar con ese criterio.'); return; }
+      if (!confirm(`Se van a fijar ${idx.length} clientes en este plan, con su foto de ${CNAME[ACT]}. ¿Seguimos?`)) return;
+      asegId(p); p.cli = congelarClientes(idx); p.cliBase = ACT; p.desde = p.desde || mesHoy(); saveCfg(); render();
+    });
     document.querySelectorAll('[data-recalc]').forEach(b => b.onclick = () => { const p = D.planes[+b.dataset.recalc]; p.inicial = indicador(p.ind, ACT); p.base = ACT; saveCfg(); render(); });
     document.querySelectorAll('[data-verun]').forEach(b => b.onclick = () => {
       const p = D.planes[+b.dataset.verun], ids = univClientes(p.univ, new Uint8Array(P.length).fill(1));
@@ -1298,6 +1331,253 @@ function planesAccion(){
       $('#dlg').showModal();
     });
   }
+}
+
+
+// ---------- SEGUIMIENTO DE CLIENTES DEL PDA (lista congelada + ventas mensuales + cierre con censo nuevo) ----------
+D.ventas = D.ventas || {}; D.pdaEst = D.pdaEst || {}; D.ventaMap = D.ventaMap || {};
+const EST_PDA = ['Pendiente', 'Visitado', 'Aceptó', 'No aceptó', 'Cerrado'];
+const MOT_PDA = {C: 'Conquistar', R: 'Recuperar', D: 'Distribuir'};
+const todos1 = () => new Uint8Array(P.length).fill(1);
+const mesHoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+const MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const fMes = m => { const [y, mm] = m.split('-'); return MESES_ES[+mm - 1] + '-' + y.slice(2); };
+function asegId(p){ if (!p.id){ p.id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); p._orden = p._orden || Date.now(); } return p.id; }
+function infoMarcas(){ const o = {}; D.maps.forEach(m => { if (m.incluir && !o[m.marca]) o[m.marca] = {seg: m.segmento, emp: m.empresa}; }); return o; }
+function sinFiltroSeg(fn){ const b = S.seg; S.seg = ''; try { return fn(); } finally { S.seg = b; } }
+// foto de los clientes del plan en el censo actual: [id, SOM, HL competencia, motivos]
+function congelarClientes(idx){
+  return sinFiltroSeg(() => {
+    const ok = todos1(), tot = pdvTot(ACT, ok, false), cmq = pdvTarget(ACT, ok, m => m.empresa === 'CMQ');
+    const mot = new Map(pdaCalc(ok).map(r => [r.i, r.tipos.map(t => t[0]).join('')]));
+    return idx.map(i => [P[i].id, tot[i] > 0 ? Math.round(cmq[i] / tot[i] * 10000) / 10000 : null, Math.round((tot[i] - cmq[i]) * 10) / 10, mot.get(i) || '']);
+  });
+}
+// qué tiene que comprar el cliente para contar como "compró": EMP:CMQ, SEG:<segmento> o MAR:<marca>
+function objCompra(p){
+  if (p.compra) return p.compra;
+  const u = p.univ;
+  if (u && u.tipo === 'DISTMAR') return 'MAR:' + u.marca;
+  if (u && (u.tipo === 'SEG' || u.tipo === 'DISTSEG')) return 'SEG:' + u.seg;
+  const o = (p.ind && p.ind.obj) || '';
+  if (o.startsWith('SEG:') || o.startsWith('MAR:')) return o;
+  return 'EMP:CMQ';
+}
+const compraLab = s => s === 'EMP:CMQ' ? 'cualquier cerveza CMQ' : s.startsWith('SEG:') ? 'segmento ' + s.slice(4) + ' (CMQ)' : s.slice(4);
+function compro(spec, cid, mes, IM){
+  const v = D.ventas[mes]; if (!v) return null;
+  const c = v[cid]; if (!c) return false;
+  for (const [k, q] of Object.entries(c)){
+    if (!(q > 0)) continue;
+    if (spec === 'EMP:CMQ') return true;
+    const seg = k.startsWith('~SEG:') ? k.slice(5) : (IM[k] || {}).seg;
+    if (spec.startsWith('SEG:') && seg === spec.slice(4)) return true;
+    if (spec.startsWith('MAR:') && k === spec.slice(4)) return true;
+  }
+  return false;
+}
+const mesesPlan = p => Object.keys(D.ventas).filter(m => !p.desde || m >= p.desde).sort();
+function seguimientoPlan(p){
+  const spec = objCompra(p), IM = infoMarcas(), meses = mesesPlan(p), est = (D.pdaEst || {})[p.id] || {};
+  const idx = new Map(P.map((x, i) => [x.id, i]));
+  const pb = p.cliBase || p.base, cierre = pb && pb !== ACT && CIDS.includes(pb);
+  let somN = null, objN = null;
+  if (cierre) sinFiltroSeg(() => {
+    const ok = todos1(), tot = pdvTot(ACT, ok, false), cmq = pdvTarget(ACT, ok, m => m.empresa === 'CMQ');
+    const pred = spec === 'EMP:CMQ' ? m => m.empresa === 'CMQ' : spec.startsWith('SEG:') ? m => m.segmento === spec.slice(4) && m.empresa === 'CMQ' : m => m.marca === spec.slice(4);
+    const ob = pdvTarget(ACT, ok, pred);
+    somN = i => tot[i] > 0 ? cmq[i] / tot[i] : null; objN = i => tot[i] > 0 ? ob[i] > 0 : null;
+  });
+  const filas = (p.cli || []).map(([id, som0, comp0, mot]) => {
+    const i = idx.get(id), pp = i == null ? null : P[i], e = est[fKey(id)] || {};
+    const porMes = meses.map(m => compro(spec, id, m, IM));
+    const r = {id, i, pp, som0, comp0, mot, e, porMes, compro: porMes.some(x => x === true)};
+    if (cierre && i != null){ r.somN = somN(i); r.dSom = r.somN == null || som0 == null ? null : r.somN - som0; r.objN = objN(i); }
+    return r;
+  });
+  const n = filas.length, ult = meses[meses.length - 1];
+  const res = {spec, meses, cierre, filas, n,
+    compraron: filas.filter(r => r.compro).length,
+    ultMes: ult, compraronUlt: ult ? filas.filter(r => r.porMes[r.porMes.length - 1] === true).length : 0,
+    trabajados: filas.filter(r => r.e.e && r.e.e !== 'Pendiente').length};
+  if (cierre){
+    const c = filas.filter(r => r.somN != null);
+    res.censados = c.length; res.subieron = c.filter(r => r.dSom > 0.0001).length; res.conObj = c.filter(r => r.objN).length;
+  }
+  return res;
+}
+function guardarEst(pid, cid, campo, val){
+  const k = fKey(cid); D.pdaEst[pid] = D.pdaEst[pid] || {};
+  const o = {...(D.pdaEst[pid][k] || {}), [campo]: val, por: USUARIO || '', ts: Date.now()};
+  D.pdaEst[pid][k] = o;
+  if (CLOUD) FBDB.ref(FB_ROOT + '/pdaest/' + pid + '/' + k).set(o).catch(e => alert('No se pudo guardar: ' + e.message));
+  else saveCfg();
+}
+function resumenPlanHtml(p){
+  if (!p.cli || !p.cli.length) return '';
+  const s = seguimientoPlan(p), pc = (a, b) => b ? ' (' + nf0.format(a / b * 100) + '%)' : '';
+  return `<div class="kpis-pl">
+    <div class="kpi"><div class="lab">Clientes del plan</div><div class="val">${fHL(s.n)}</div></div>
+    <div class="kpi"><div class="lab">Compraron ${esc(compraLab(s.spec))}</div><div class="val">${s.meses.length ? fHL(s.compraron) + pc(s.compraron, s.n) : '–'}</div><div class="muted" style="font-size:11px">${s.meses.length ? 'en ' + s.meses.map(fMes).join(', ') : 'sin ventas cargadas'}</div></div>
+    ${s.ultMes ? `<div class="kpi"><div class="lab">Compraron en ${fMes(s.ultMes)}</div><div class="val">${fHL(s.compraronUlt)}${pc(s.compraronUlt, s.n)}</div></div>` : ''}
+    <div class="kpi"><div class="lab">Trabajados (estado cargado)</div><div class="val">${fHL(s.trabajados)}${pc(s.trabajados, s.n)}</div></div>
+    ${s.cierre ? `<div class="kpi" style="border-color:var(--accent)"><div class="lab">Cierre ${esc(CNAME[ACT])}: subieron su SOM</div><div class="val">${fHL(s.subieron)} de ${fHL(s.censados)}${pc(s.subieron, s.censados)}</div><div class="muted" style="font-size:11px">con el objetivo en el censo: ${fHL(s.conObj)}</div></div>` : ''}
+  </div>`;
+}
+function verClientesPlan(pid){
+  const p = (D.planes || []).find(x => x.id === pid); if (!p) return;
+  const st = S.plDlg = S.plDlg && S.plDlg.pid === pid ? S.plDlg : {pid, sup: supsLista().includes(USUARIO) ? USUARIO : '', solo: ''};
+  const s = seguimientoPlan(p);
+  let filas = s.filas;
+  if (st.sup) filas = filas.filter(r => r.pp && r.pp.sup === st.sup);
+  if (st.solo === 'nocompro') filas = filas.filter(r => !r.compro);
+  if (st.solo === 'compro') filas = filas.filter(r => r.compro);
+  if (st.solo === 'pend') filas = filas.filter(r => !r.e.e || r.e.e === 'Pendiente');
+  const supsP = [...new Set(s.filas.map(r => r.pp && r.pp.sup).filter(Boolean))].sort();
+  const mot = m => (m || '').split('').map(c => `<span class="pill" style="font-size:10.5px">${MOT_PDA[c] || c}</span>`).join(' ');
+  const cols = [
+    {lab: 'Cliente', l: true, w: 190, fn: r => (r.pp ? esc(r.pp.rs) : '<i>no está en la base</i>') + `<br><span class="muted" style="font-size:11px">${r.id}</span>`},
+    {lab: 'Supervisor', l: true, w: 118, fn: r => r.pp ? esc(r.pp.sup) : ''}, {lab: 'Promotor', l: true, w: 130, fn: r => r.pp ? esc(r.pp.ven) : ''},
+    {lab: 'Motivo', l: true, w: 95, fn: r => mot(r.mot)},
+    {lab: 'SOM<br>' + esc(p.cliBase || p.base || ''), bl: true, fn: r => fP(r.som0)}, {lab: 'HL<br>compet.', fn: r => fHL(r.comp0)},
+    ...s.meses.map((m, j) => ({lab: fMes(m), bl: j === 0, fn: r => r.porMes[j] === true ? '<span class="si">✔</span>' : r.porMes[j] === false ? '<span class="no">–</span>' : ''})),
+    {lab: '¿Compró?', bl: true, fn: r => s.meses.length ? (r.compro ? '<span class="si">SÍ</span>' : '<span class="no">NO</span>') : '–'},
+    ...(s.cierre ? [{lab: 'SOM<br>' + esc(ACT), bl: true, fn: r => fP(r.somN)}, {lab: 'Δ SOM', fn: r => fPP(r.dSom)}, {lab: 'Objetivo<br>en censo', fn: r => r.objN == null ? '–' : r.objN ? '<span class="si">✔</span>' : '<span class="no">–</span>'}] : []),
+    {lab: 'Estado', l: true, bl: true, fn: r => `<select class="est" data-pe="${esc(r.id)}" data-c="e">${EST_PDA.map(e => `<option ${e === (r.e.e || 'Pendiente') ? 'selected' : ''}>${e}</option>`).join('')}</select>`},
+    {lab: 'Comentario', l: true, w: 220, fn: r => `<input class="com" data-pe="${esc(r.id)}" data-c="c" value="${esc(r.e.c || '')}" placeholder="Qué se hizo / qué dijo">` + (r.e.por ? `<div class="muted" style="font-size:10.5px">${esc(r.e.por)} · ${new Date(r.e.ts).toLocaleDateString('es-AR')}</div>` : '')},
+  ];
+  $('#dlg').classList.add('ancho');
+  $('#dlgT').textContent = `${p.titulo} — seguimiento de ${s.n} clientes`;
+  $('#dlgB').innerHTML = `${resumenPlanHtml(p)}
+    <p class="desc" style="margin-top:10px">"Compró" = el cliente compró <b>${esc(compraLab(s.spec))}</b> en algún mes cargado desde ${p.desde ? fMes(p.desde) : 'el inicio'} (se marca solo con la base de ventas). El estado y el comentario los carga el equipo y quedan firmados.${s.cierre ? ` Las columnas de ${esc(CNAME[ACT])} comparan contra la foto de ${esc(CNAME[p.cliBase || p.base] || p.cliBase || p.base)} tomada al armar el plan.` : ''}</p>
+    <div class="tools"><label class="muted" style="font-size:12px">Supervisor</label><select id="pdSup"><option value="">Todos</option>${supsP.map(x => `<option ${x === st.sup ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+    <label class="muted" style="font-size:12px">Mostrar</label><select id="pdSolo">${[['', 'Todos'], ['nocompro', 'Los que todavía no compraron'], ['compro', 'Los que compraron'], ['pend', 'Pendientes de trabajar']].map(([v, l]) => `<option value="${v}" ${v === st.solo ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <span class="muted" style="font-size:12px">${fHL(filas.length)} clientes</span></div>
+    ${table('tSegPlan', cols, filas, {nosort: true, compact: true})}`;
+  $('#pdSup').onchange = e => { st.sup = e.target.value; verClientesPlan(pid); };
+  $('#pdSolo').onchange = e => { st.solo = e.target.value; verClientesPlan(pid); };
+  $('#dlgB').querySelectorAll('[data-pe]').forEach(el => el.onchange = () => guardarEst(pid, el.dataset.pe, el.dataset.c, el.value));
+  if (!$('#dlg').open) $('#dlg').showModal();
+}
+function refrescarDlgPlan(){
+  const d = $('#dlg'); if (!d || !d.open || !S.plDlg || !d.classList.contains('ancho')) return;
+  const a = document.activeElement; if (a && d.contains(a) && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) return;
+  const y = $('#dlgB').scrollTop; verClientesPlan(S.plDlg.pid); $('#dlgB').scrollTop = y;
+}
+// ---------- base de ventas mensual ----------
+function leerVentas(A, mesSel){
+  let hr = -1, H = null;
+  for (let r = 0; r < Math.min(20, A.length); r++){
+    const h = (A[r] || []).map(v => SINT(UP(v == null ? '' : String(v))));
+    if (h.some(x => /CLIENTE|^POC|CONCAT DISTRIS/.test(x))){ hr = r; H = h; break; }
+  }
+  if (hr < 0) throw new Error('No encontré la columna del cliente (un encabezado que diga "Cliente").');
+  const body = A.slice(hr + 1, hr + 301);
+  const numerica = j => body.filter(r => r && /^\d{3,}$/.test(String(r[j] ?? '').trim().split('.')[0])).length;
+  const cands = H.map((x, j) => /CLIENTE|^POC|CONCAT DISTRIS/.test(x) ? j : -1).filter(j => j >= 0);
+  const cCli = cands.sort((a, b) => numerica(b) - numerica(a) || (/COD/.test(H[b]) ? 1 : 0) - (/COD/.test(H[a]) ? 1 : 0))[0];
+  if (!numerica(cCli)) throw new Error('La columna "' + H[cCli] + '" no tiene códigos de cliente numéricos.');
+  const busca = (...res) => { for (const re of res){ const j = H.findIndex(x => re.test(x)); if (j >= 0) return j; } return -1; };
+  const cMar = busca(/^MARCA$/, /MARCA/, /ARTICULO|PRODUCTO|DESCRIPCION ART/);
+  const cSeg = busca(/SEGMENTO/), cNeg = busca(/NEGOCIO/);
+  const cPer = busca(/DESCRIPCION PERIODO|FECHA DEL PERIODO/, /PERIODO/, /^MES$|^MES /, /FECHA/);
+  const cQty = busca(/^HL$|HECTOLITRO/, /CANTIDAD/, /BULTOS/, /LITROS/, /VOLUMEN|UNIDADES/);
+  if (cMar < 0 && cSeg < 0) throw new Error('No encontré una columna de Marca (o Segmento) para saber qué compró cada cliente.');
+  const X = window.XLSX;
+  const mesDe = v => {
+    if (v == null || v === '') return null;
+    if (v instanceof Date) return v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0');
+    if (/^20\d{2}(0[1-9]|1[0-2])$/.test(String(v).trim())) return String(v).trim().slice(0, 4) + '-' + String(v).trim().slice(4, 6);
+    if (typeof v === 'number' && v > 30000 && v < 80000 && X){ const d = X.SSF.parse_date_code(v); return d ? d.y + '-' + String(d.m).padStart(2, '0') : null; }
+    const s = SINT(String(v).toUpperCase()); let m;
+    if ((m = s.match(/(\d{4})[-\/.](\d{1,2})/))) return m[1] + '-' + m[2].padStart(2, '0');
+    if ((m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) return m[3] + '-' + m[2].padStart(2, '0');
+    if ((m = s.match(/(\d{1,2})[-\/.](\d{4})/))) return m[2] + '-' + m[1].padStart(2, '0');
+    const meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    const k = meses.findIndex(x => s.includes(x)); const y = s.match(/(20\d{2})/) || s.match(/\b(\d{2})\b/);
+    if (k >= 0 && y) return (y[1].length === 2 ? '20' + y[1] : y[1]) + '-' + String(k + 1).padStart(2, '0');
+    return null;
+  };
+  const IM = infoMarcas(), out = {}, sinMap = {};
+  let filas = 0, usadas = 0, sinMes = 0;
+  for (const r of A.slice(hr + 1)){
+    if (!r) continue;
+    const cid = canonId(r[cCli]); if (!cid) continue;
+    filas++;
+    if (cNeg >= 0 && r[cNeg] != null && !/CERVEZ|CZA/.test(SINT(UP(r[cNeg])))) continue;
+    const q = cQty >= 0 ? (typeof r[cQty] === 'number' ? r[cQty] : parseFloat(String(r[cQty] ?? '').replace(/\./g, '').replace(',', '.'))) : 1;
+    if (!(q > 0)) continue;
+    let key = null;
+    const nom = cMar >= 0 ? SINT(UP(r[cMar])).replace(/^CERVEZAS? /, '') : '';
+    if (nom && Object.prototype.hasOwnProperty.call(D.ventaMap, nom)) key = D.ventaMap[nom] || '';
+    else if (nom){
+      const rg = REGLAS.find(x => x[0].test(nom));
+      if (rg && rg[2] === 'CMQ' && rg[4]) key = rg[1];
+      else if (IM[nom] && IM[nom].emp === 'CMQ') key = nom;
+    }
+    if (key === null && cSeg >= 0){ const sg = SINT(UP(r[cSeg])); if (SEGMENTOS.includes(sg)) key = '~SEG:' + sg; }
+    if (key === null){ if (nom) sinMap[nom] = (sinMap[nom] || 0) + q; continue; }
+    if (key === '') continue;
+    const mes = (cPer >= 0 ? mesDe(r[cPer]) : null) || mesSel;
+    if (!mes){ sinMes++; continue; }
+    const o = (out[mes] = out[mes] || {}), c = (o[cid] = o[cid] || {});
+    c[key] = Math.round(((c[key] || 0) + q) * 1000) / 1000; usadas++;
+  }
+  if (!Object.keys(out).length) throw new Error(sinMes ? 'El archivo no trae el mes: elegilo en "Mes de la venta" y volvé a subirlo.' : 'No encontré ventas de cerveza CMQ en el archivo.');
+  return {out, sinMap, filas, usadas, sinMes, cols: {cliente: H[cCli], marca: cMar >= 0 ? H[cMar] : '-', segmento: cSeg >= 0 ? H[cSeg] : '-', periodo: cPer >= 0 ? H[cPer] : '-', cantidad: cQty >= 0 ? H[cQty] : '-'}};
+}
+async function subirVentas(file){
+  const msg = $('#vtMsg'); if (!file) return;
+  try {
+    msg.textContent = 'Leyendo ' + file.name + '…';
+    S.ventaFile = file;
+    const X = await cargarXLSX();
+    const wb = X.read(await file.arrayBuffer(), {type: 'array', cellDates: true});
+    let res = null, err = null;
+    for (const nom of wb.SheetNames){
+      try { res = leerVentas(X.utils.sheet_to_json(wb.Sheets[nom], {header: 1, defval: null, raw: true}), S.ventaMes); break; } catch(e){ err = err || e; }
+    }
+    if (!res) throw err || new Error('No pude leer el archivo.');
+    for (const [mes, o] of Object.entries(res.out)){
+      D.ventas[mes] = o;
+      if (CLOUD) await FBDB.ref(FB_ROOT + '/ventas/' + mes).set(JSON.stringify(o));
+    }
+    if (!CLOUD) saveCfg();
+    S.ventaSinMap = Object.entries(res.sinMap).sort((a, b) => b[1] - a[1]).slice(0, 40);
+    const meses = Object.keys(res.out).sort();
+    S.vtMsg = `<span class="up">Listo:</span> ${meses.map(fMes).join(', ')} · ${fHL(res.usadas)} filas de cerveza CMQ de ${fHL(res.filas)} leídas · ${fHL(meses.reduce((a, m) => a + Object.keys(res.out[m]).length, 0))} clientes con compra.
+      <br><span class="muted">Columnas usadas: cliente = ${esc(res.cols.cliente)}, marca = ${esc(res.cols.marca)}, segmento = ${esc(res.cols.segmento)}, mes = ${esc(res.cols.periodo)}, cantidad = ${esc(res.cols.cantidad)}.</span>
+      ${S.ventaSinMap.length ? '<br>Hay marcas que no reconocí (abajo). Si alguna es cerveza CMQ, asignala y el archivo se vuelve a procesar solo.' : ''}`;
+    render();
+  } catch (e){ S.vtMsg = '<span class="down">Error: ' + esc(e.message) + '</span>'; render(); }
+}
+function ventasCardHtml(){
+  const meses = Object.keys(D.ventas || {}).sort();
+  const IM = infoMarcas(), cmq = Object.keys(IM).filter(m => IM[m].emp === 'CMQ').sort();
+  return `<div class="card"><h2>Ventas mensuales (seguimiento del PDA)</h2>
+    <p class="desc">Subí la venta del mes (Excel o CSV exportado de Chess o Power BI). Tiene que tener una columna de <b>cliente</b> (código) y una de <b>marca</b> (o segmento); si trae <b>período/fecha</b> la toma de ahí, si no, elegí el mes acá. Solo se usa la cerveza CMQ, y con eso se marca solo qué clientes de cada plan compraron. Si el Excel es muy pesado (cientos de miles de filas), conviene resumirlo antes a cliente × marca × mes.</p>
+    <div class="row"><div class="drop"><b>Base de ventas</b><br><label class="muted" style="font-size:12px">Mes de la venta (si el archivo no lo trae):</label> <input type="month" id="vtMes" value="${esc(S.ventaMes || '')}"><br>
+      <input type="file" id="upVentas" accept=".xlsx,.xls,.csv" style="margin-top:6px"></div>
+    <div class="drop"><b>Meses cargados</b><br>${meses.length ? meses.map(m => `<span class="pill" style="margin:2px">${fMes(m)} · ${fHL(Object.keys(D.ventas[m]).length)} clientes <a href="#" data-delmes="${m}" title="Borrar este mes" style="color:var(--bad);text-decoration:none">✕</a></span>`).join(' ') : '<span class="muted">Todavía ninguno.</span>'}</div></div>
+    <div id="vtMsg" class="desc" style="margin-top:10px">${S.vtMsg || ''}</div>
+    ${S.ventaSinMap && S.ventaSinMap.length ? `<div class="tw" style="max-height:260px;margin-top:8px"><table><thead><tr><th class="l">Marca en la venta (no reconocida)</th><th>Cantidad</th><th class="l">Es…</th></tr></thead><tbody>
+      ${S.ventaSinMap.map(([n, q]) => `<tr><td class="l">${esc(n)}</td><td>${fHL(q)}</td><td class="l"><select data-vmap="${esc(n)}"><option value="">No es cerveza CMQ (ignorar)</option>${cmq.map(m => `<option>${esc(m)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${Object.keys(D.ventaMap || {}).length ? `<p class="muted" style="font-size:12px;margin-top:8px">Asignaciones guardadas: ${Object.entries(D.ventaMap).map(([a, b]) => esc(a) + ' → ' + esc(b || 'ignorar')).join(' · ')} <a href="#" id="vmReset">borrar asignaciones</a></p>` : ''}</div>`;
+}
+function bindVentas(){
+  const f = $('#upVentas'); if (!f) return;
+  $('#vtMes').onchange = e => { S.ventaMes = e.target.value; };
+  f.onchange = e => subirVentas(e.target.files[0]);
+  document.querySelectorAll('[data-delmes]').forEach(a => a.onclick = async e => {
+    e.preventDefault(); const m = a.dataset.delmes;
+    if (!confirm('¿Borrar la venta de ' + fMes(m) + '?')) return;
+    delete D.ventas[m]; if (CLOUD) await FBDB.ref(FB_ROOT + '/ventas/' + m).remove(); else saveCfg(); render();
+  });
+  document.querySelectorAll('[data-vmap]').forEach(s => s.onchange = () => {
+    D.ventaMap[s.dataset.vmap] = s.value; saveCfg();
+    if (S.ventaFile) subirVentas(S.ventaFile); else render();
+  });
+  const vr = $('#vmReset'); if (vr) vr.onclick = e => { e.preventDefault(); D.ventaMap = {}; saveCfg(); render(); };
 }
 
 // ---------- PERFORMANCE POR CLIENTE ----------
@@ -1464,7 +1744,9 @@ function rCfg(){
     <div class="card"><h2>Actualizar bases</h2>
     <p class="desc">Elegí qué censo reemplazás y cargá el Excel. Acepta los tres formatos que usamos: base larga (una fila por PDV y artículo, como BASE_HL_OCT25/ABR26), template del distribuidor (como BASE_HL_SEP26) o resultados finales de la región (como PATAGONIA_Resultados_Finales; se toman solo las filas de Logística Total). La base de clientes (export del sistema) actualiza vendedores y subcanales. Necesita internet solo para leer el Excel.</p>
     <div class="row"><div class="drop"><b>Base de censo</b><br>
-      <label class="muted" style="font-size:12px">Reemplazar:</label> <select id="upCid">${CIDS.map(c => `<option value="${c}" ${c === (S.upCid || ACT) ? 'selected' : ''}>${CNAME[c]}${D.fuentes && D.fuentes[c] ? ' (hoy: ' + esc(D.fuentes[c]) + ')' : ''}</option>`).join('')}</select><br>
+      <label class="muted" style="font-size:12px">Reemplazar:</label> <select id="upCid"><option value="__nuevo" ${S.upCid === '__nuevo' ? 'selected' : ''}>➕ Agregar un censo nuevo</option>${CIDS.map(c => `<option value="${c}" ${c === (S.upCid || ACT) ? 'selected' : ''}>Reemplazar ${CNAME[c]}${D.fuentes && D.fuentes[c] ? ' (hoy: ' + esc(D.fuentes[c]) + ')' : ''}</option>`).join('')}</select><br>
+      <div id="ncBox" style="display:none;margin-top:6px"><input type="text" id="ncId" placeholder="Código, ej: MAR27" style="width:130px" value="${esc(S.ncId || '')}"> <input type="text" id="ncNom" placeholder="Nombre, ej: Marzo 2027" style="width:170px" value="${esc(S.ncNom || '')}">
+      <div class="muted" style="font-size:11.5px;margin-top:4px">El censo nuevo pasa a ser el actual, ${CNAME[ACT]} queda como censo anterior y ${CNAME[CA]} como año anterior. Los censos viejos no se borran.</div></div>
       <input type="file" id="upCenso" accept=".xlsx,.xls" style="margin-top:6px"></div>
     <div class="drop"><b>Base de clientes</b> (total_clientes)<br><input type="file" id="upCli" accept=".xlsx,.xls"></div></div>
     <div id="upMsg" class="desc" style="margin-top:10px">${S.upMsg || ''}</div></div>
@@ -1488,6 +1770,7 @@ function rCfg(){
     <div class="card cfg"><h2>Subcanal → canal</h2><p class="desc">REF es On premise; el resto cuenta como Off premise.</p>
     <div class="tw"><table><thead><tr><th class="l">Subcanal</th><th class="l">Canal</th><th>PDV</th></tr></thead><tbody>
     ${D.subMap.map((r, i) => `<tr><td class="l">${esc(r.sub)}</td><td class="l">${sel(CANALES, r.canal, `data-s="${i}"`)}</td><td>${P.filter(p => p.sub === r.sub).length}</td></tr>`).join('')}</tbody></table></div></div></div>
+    ${ventasCardHtml()}
     <div class="card"><h2>Calidad de datos</h2><ul class="concl">${calidadNotas().map(n => `<li>${n}</li>`).join('')}</ul></div>`;
   setTimeout(bindCfg);
   return h;
@@ -1506,8 +1789,22 @@ function bindCfg(){
   $('#dlHtml').onclick = descargarHtml;
   if ($('#rstCfg')) $('#rstCfg').onclick = () => { if (!confirm('¿Volver a la configuración con la que vino el archivo?')) return; lsDel(CFG_KEY); D = JSON.parse(ORIG_JSON); P = D.pdv; buildFacts(); dirty = false; rebuildLookups(); render(); };
   $('#upCid').onchange = e => { S.upCid = e.target.value; };
-  $('#upCenso').onchange = e => subirArchivo(e.target.files[0], 'censo', S.upCid || ACT);
+  $('#upCenso').onchange = e => {
+    let cid = S.upCid || ACT;
+    if (cid === '__nuevo'){
+      const id = ($('#ncId').value || '').trim().toUpperCase().replace(/\s+/g, ''), nom = ($('#ncNom').value || '').trim();
+      S.ncId = id; S.ncNom = nom;
+      if (!/^[A-Z0-9]{3,10}$/.test(id) || !nom){ alert('Poné un código (ej: MAR27) y un nombre (ej: Marzo 2027) para el censo nuevo.'); e.target.value = ''; return; }
+      if (CIDS.includes(id)){ alert('Ya existe un censo con el código ' + id + '.'); e.target.value = ''; return; }
+      if (!confirm(`Se agrega el censo ${nom} (${id}) como censo actual. ¿Seguimos?`)){ e.target.value = ''; return; }
+      D.censos.push({id, nombre: nom}); CNAME[id] = nom; cid = id; S.censoNuevo = id;
+    }
+    subirArchivo(e.target.files[0], 'censo', cid);
+  };
   $('#upCli').onchange = e => subirArchivo(e.target.files[0], 'cli');
+  bindVentas();
+  const nc = () => { const v = $('#upCid').value === '__nuevo'; $('#ncBox').style.display = v ? 'block' : 'none'; };
+  $('#upCid').addEventListener('change', nc); nc();
 }
 function descargarHtml(){
   D.version = 'v' + Date.now();
@@ -1645,9 +1942,15 @@ async function subirArchivo(file, tipo, cid){
       render(); $('#upMsg').innerHTML = S.upMsg + '<br>Publicando en la nube…';
       await publicarBase();
       S.upMsg = S.upMsg.replace('Después bajá el HTML actualizado.', '') + '<br><span class="up">Publicado: todos ven la base nueva al recargar.</span>';
+      if (S.censoNuevo){ alert('Censo nuevo cargado y publicado. La página se va a recargar para tomarlo como censo actual.'); location.reload(); return; }
+    } else if (S.censoNuevo){
+      S.upMsg += '<br><b>Para verlo como censo actual, descargá el HTML y abrí ese archivo nuevo.</b>';
     }
     render();
-  } catch (err){ S.upMsg = '<span class="down">Error: ' + esc(err.message) + '</span>'; render(); }
+  } catch (err){
+    if (S.censoNuevo){ D.censos = D.censos.filter(c => c.id !== S.censoNuevo); delete D.facts[S.censoNuevo]; S.censoNuevo = null; }
+    S.upMsg = '<span class="down">Error: ' + esc(err.message) + '</span>'; render();
+  }
 }
 function procesarCenso(A, cid, nombreArchivo){
   cid = cid || ACT;

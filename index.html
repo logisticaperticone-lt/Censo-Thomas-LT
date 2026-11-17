@@ -56,6 +56,10 @@ tr.tot td{font-weight:700;background:var(--soft)}
 tr.sub td{color:var(--ink2)}
 tr.par td{font-weight:600;background:var(--soft)}
 tr.click{cursor:pointer} tr.click:hover td{background:var(--sel)}
+th .rz{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;z-index:3}
+th .rz:hover,th .rz.on{background:var(--accent);opacity:.6}
+td.wr,th.wr{white-space:normal;overflow-wrap:anywhere}
+table.compact{font-size:12px} table.compact th,table.compact td{padding:4px 6px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0}
 .tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 11px;border-radius:7px;cursor:pointer}
@@ -567,18 +571,55 @@ const indent = r => r.nivel === 2 ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '';
 // ---------- tabla genérica ----------
 // cols: [{lab, l(bool align left), fn(row)->html, sortVal(row), cls}]
 const SORTS = {};
+let COLW = {}; try { COLW = JSON.parse(localStorage.getItem('censoColW') || '{}'); } catch(e){}
+const guardarColW = () => { try { localStorage.setItem('censoColW', JSON.stringify(COLW)); } catch(e){} };
+const anchoCol = (id, i, c) => (COLW[id] && COLW[id][i]) || c.w || 0;
+const estW = w => w ? `style="width:${w}px;min-width:${w}px;max-width:${w}px"` : '';
 function table(id, cols, rows, opts = {}){
   const st = SORTS[id];
   let rs = rows.slice();
   if (st && !opts.nosort){ const c = cols[st.i]; if (c && c.sv) rs.sort((a, b) => { const x = c.sv(a), y = c.sv(b); return (x < y ? -1 : x > y ? 1 : 0) * st.d; }); }
   const groups = opts.groups ? `<tr>${opts.groups.map(g => `<th class="grp" colspan="${g[1]}">${esc(g[0])}</th>`).join('')}</tr>` : '';
-  const head = `<tr>${cols.map((c, i) => `<th class="${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''}" ${opts.nosort ? '' : `data-t="${id}" data-i="${i}" title="Ordenar"`}>${c.lab}${st && st.i === i ? (st.d > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('')}</tr>`;
-  const body = rs.map(r => `<tr class="${r._cls || ''} ${r._drill ? 'click' : ''}" ${r._click != null && r._click !== '' ? `data-click="${esc(r._click)}"` : ''} ${r._drill ? `data-drill="${esc(r._drill)}"` : ''} ${r._drill ? 'title="Clic para ver el detalle"' : ''}>${cols.map(c => `<td class="${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''}">${c.fn(r)}</td>`).join('')}</tr>`).join('');
-  const foot = opts.total ? `<tr class="tot">${cols.map(c => `<td class="${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''}">${c.fn(opts.total)}</td>`).join('')}</tr>` : '';
-  return `<div class="tools"><button class="btn" data-csv="${id}">Descargar CSV</button>${opts.extra || ''}</div>
-    <div class="tw"><table id="${id}"><thead>${groups}${head}</thead><tbody>${body}${foot}</tbody></table></div>`;
+  const W = cols.map((c, i) => anchoCol(id, i, c));
+  const cl = (c, i) => `${c.l ? 'l' : ''} ${c.bl ? 'bl' : ''} ${W[i] ? 'wr' : ''}`;
+  const head = `<tr>${cols.map((c, i) => `<th class="${cl(c, i)}" ${estW(W[i])} ${opts.nosort ? '' : `data-t="${id}" data-i="${i}" title="Ordenar"`}>${c.lab}${st && st.i === i ? (st.d > 0 ? ' ↑' : ' ↓') : ''}<span class="rz" data-rt="${id}" data-ri="${i}" title="Arrastrá para cambiar el ancho · doble clic para volver al original"></span></th>`).join('')}</tr>`;
+  const body = rs.map(r => `<tr class="${r._cls || ''} ${r._drill ? 'click' : ''}" ${r._click != null && r._click !== '' ? `data-click="${esc(r._click)}"` : ''} ${r._drill ? `data-drill="${esc(r._drill)}"` : ''} ${r._drill ? 'title="Clic para ver el detalle"' : ''}>${cols.map((c, i) => `<td class="${cl(c, i)}" ${estW(W[i])}>${c.fn(r)}</td>`).join('')}</tr>`).join('');
+  const foot = opts.total ? `<tr class="tot">${cols.map((c, i) => `<td class="${cl(c, i)}" ${estW(W[i])}>${c.fn(opts.total)}</td>`).join('')}</tr>` : '';
+  const hayW = COLW[id] && Object.keys(COLW[id]).length;
+  return `<div class="tools"><button class="btn" data-csv="${id}">Descargar CSV</button>${hayW ? `<button class="btn" data-rzreset="${id}">Restablecer anchos</button>` : ''}${opts.extra || ''}</div>
+    <div class="tw"><table id="${id}" class="${opts.compact ? 'compact' : ''}"><thead>${groups}${head}</thead><tbody>${body}${foot}</tbody></table></div>`;
 }
+// arrastrar el borde derecho del encabezado para cambiar el ancho de la columna
+let RZ = null, RZ_FIN = 0;
+document.addEventListener('mousedown', e => {
+  const h = e.target.closest('.rz'); if (!h) return;
+  e.preventDefault(); e.stopPropagation();
+  const th = h.parentElement;
+  RZ = {id: h.dataset.rt, i: +h.dataset.ri, th, x: e.clientX, w0: th.getBoundingClientRect().width, h};
+  h.classList.add('on'); document.body.style.cursor = 'col-resize';
+});
+document.addEventListener('mousemove', e => {
+  if (!RZ) return;
+  const w = Math.max(40, Math.round(RZ.w0 + e.clientX - RZ.x));
+  RZ.w = w; RZ.th.style.width = RZ.th.style.minWidth = RZ.th.style.maxWidth = w + 'px';
+  const t = document.getElementById(RZ.id);
+  if (t) t.querySelectorAll('tbody tr').forEach(tr => { const td = tr.children[RZ.i]; if (td){ td.style.width = td.style.minWidth = td.style.maxWidth = w + 'px'; td.classList.add('wr'); } });
+});
+document.addEventListener('mouseup', () => {
+  if (!RZ) return;
+  if (RZ.w){ (COLW[RZ.id] = COLW[RZ.id] || {})[RZ.i] = RZ.w; guardarColW(); }
+  RZ.h.classList.remove('on'); document.body.style.cursor = ''; RZ = null; RZ_FIN = Date.now();
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+});
+document.addEventListener('dblclick', e => {
+  const h = e.target.closest('.rz'); if (!h) return;
+  if (COLW[h.dataset.rt]){ delete COLW[h.dataset.rt][h.dataset.ri]; guardarColW(); }
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+});
 document.addEventListener('click', e => {
+  if (e.target.closest('.rz') || Date.now() - RZ_FIN < 300) return;
+  const rr = e.target.closest('[data-rzreset]');
+  if (rr){ delete COLW[rr.dataset.rzreset]; guardarColW(); const y = window.scrollY; render(); window.scrollTo(0, y); return; }
   const th = e.target.closest('th[data-t]');
   if (th){
     const id = th.dataset.t, i = +th.dataset.i, st = SORTS[id];
@@ -595,7 +636,8 @@ document.addEventListener('click', e => {
 function csvTable(id){
   const t = document.getElementById(id); if (!t) return;
   const lines = [...t.querySelectorAll('tr')].map(tr => [...tr.children].map(td => {
-    let s = td.textContent.replace(/[▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim();
+    const tmp = document.createElement('div'); tmp.innerHTML = td.innerHTML.replace(/<br\s*\/?>/gi, ' ');
+    let s = tmp.textContent.replace(/[▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim();
     return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }).join(';'));
   descargar(id + '.csv', '﻿' + lines.join('\r\n'), 'text/csv');
@@ -1076,13 +1118,13 @@ function pdaUniverso(ok){
       {lab: 'Conquistar', fn: r => fHL(r.Conquistar), sv: r => r.Conquistar}, {lab: 'Recuperar', fn: r => fHL(r.Recuperar), sv: r => r.Recuperar},
       {lab: 'Distribuir', fn: r => fHL(r.Distribuir), sv: r => r.Distribuir}, {lab: 'HL competencia', fn: r => fHL(r.comp), sv: r => r.comp}], supRows)}
     <h3 style="font-size:15px;margin:16px 0 8px">Clientes del universo</h3>
-    ${table('tPdaCli', [{lab: 'Cliente', l: true, fn: r => esc(P[r.i].rs) + `<br><span class="muted" style="font-size:11px">${P[r.i].id}</span>`, sv: r => P[r.i].rs},
-      {lab: 'Supervisor', l: true, fn: r => esc(P[r.i].sup), sv: r => P[r.i].sup}, {lab: 'Promotor', l: true, fn: r => esc(P[r.i].ven), sv: r => P[r.i].ven},
-      {lab: 'Subcanal', l: true, fn: r => esc(P[r.i].sub), sv: r => P[r.i].sub},
-      {lab: 'HL mercado', bl: true, fn: r => fHL(r.tot), sv: r => r.tot}, {lab: 'HL competencia', fn: r => `<b>${fHL(r.comp)}</b>`, sv: r => r.comp},
-      {lab: 'SOM ' + ACT, fn: r => fP(r.som), sv: r => r.som}, {lab: 'Δ vs ' + CA, fn: r => fPP(r.dCA), sv: r => r.dCA ?? -9},
-      {lab: 'Motivo', l: true, bl: true, fn: r => r.tipos.map(badge).join(' '), sv: r => r.tipos.join()},
-      {lab: 'Distribuir en', l: true, fn: r => r.dist.map(s => esc(s)).join(', '), sv: r => r.dist.join()}], rows, {extra: `<span class="muted">${fHL(rows.length)} clientes · clic para ver el detalle por marca</span>`})}</div>`;
+    ${table('tPdaCli', [{lab: 'Cliente', l: true, w: 180, fn: r => esc(P[r.i].rs) + `<br><span class="muted" style="font-size:11px">${P[r.i].id}</span>`, sv: r => P[r.i].rs},
+      {lab: 'Supervisor', l: true, w: 100, fn: r => esc(P[r.i].sup), sv: r => P[r.i].sup}, {lab: 'Promotor', l: true, w: 132, fn: r => esc(P[r.i].ven), sv: r => P[r.i].ven},
+      {lab: 'Subcanal', l: true, w: 118, fn: r => esc(P[r.i].sub), sv: r => P[r.i].sub},
+      {lab: 'HL<br>mercado', bl: true, fn: r => fHL(r.tot), sv: r => r.tot}, {lab: 'HL<br>compet.', fn: r => `<b>${fHL(r.comp)}</b>`, sv: r => r.comp},
+      {lab: 'SOM<br>' + ACT, fn: r => fP(r.som), sv: r => r.som}, {lab: 'Δ vs<br>' + CA, fn: r => fPP(r.dCA), sv: r => r.dCA ?? -9},
+      {lab: 'Motivo', l: true, bl: true, w: 115, fn: r => r.tipos.map(badge).join(' '), sv: r => r.tipos.join()},
+      {lab: 'Distribuir en', l: true, w: 160, fn: r => r.dist.map(s => esc(s)).join(', '), sv: r => r.dist.join()}], rows, {compact: true, extra: `<span class="muted">${fHL(rows.length)} clientes · clic para ver el detalle por marca</span>`})}</div>`;
 }
 // indicadores de seguimiento: SOM total / de un segmento, distribución física o ponderada de una marca, total o de un supervisor
 function indicador(ind, cid){

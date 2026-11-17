@@ -1279,7 +1279,7 @@ function planesAccion(){
     document.querySelectorAll('[data-adopt]').forEach(b => b.onclick = () => {
       const p = props[+b.dataset.adopt];
       const np = {titulo: p.titulo, detalle: p.detalle, responsable: p.responsable || '', fecha: '', estado: 'Pendiente', ind: {...p.ind}, inicial: indicador(p.ind, ACT), base: ACT, meta: p.meta, univ: p.univ, avances: [], origen: 'propuesto',
-        cli: congelarClientes(univClientes(p.univ, todos1())), cliBase: ACT, desde: mesHoy()};
+        cli: congelarClientes(univClientes(p.univ, todos1())), cliBase: ACT, desde: ''};
       asegId(np); D.planes.push(np);
       saveCfg(); render();
     });
@@ -1318,7 +1318,7 @@ function planesAccion(){
       const idx = b.dataset.modo === 'univ' ? univClientes(p.univ, todos1()) : pdaCalc(pdvMask()).map(r => r.i);
       if (!idx.length){ alert('No hay clientes para fijar con ese criterio.'); return; }
       if (!confirm(`Se van a fijar ${idx.length} clientes en este plan, con su foto de ${CNAME[ACT]}. ¿Seguimos?`)) return;
-      asegId(p); p.cli = congelarClientes(idx); p.cliBase = ACT; p.desde = p.desde || mesHoy(); saveCfg(); render();
+      asegId(p); p.cli = congelarClientes(idx); p.cliBase = ACT; saveCfg(); render();
     });
     document.querySelectorAll('[data-recalc]').forEach(b => b.onclick = () => { const p = D.planes[+b.dataset.recalc]; p.inicial = indicador(p.ind, ACT); p.base = ACT; saveCfg(); render(); });
     document.querySelectorAll('[data-verun]').forEach(b => b.onclick = () => {
@@ -1381,10 +1381,12 @@ function seguimientoPlan(p){
   const spec = objCompra(p), IM = infoMarcas(), meses = mesesPlan(p), est = (D.pdaEst || {})[p.id] || {};
   const idx = new Map(P.map((x, i) => [x.id, i]));
   const pb = p.cliBase || p.base, cierre = pb && pb !== ACT && CIDS.includes(pb);
-  let somN = null, objN = null;
+  let somN = null, objN = null, objB = null;
+  const pred = spec === 'EMP:CMQ' ? m => m.empresa === 'CMQ' : spec.startsWith('SEG:') ? m => m.segmento === spec.slice(4) && m.empresa === 'CMQ' : m => m.marca === spec.slice(4);
+  // ¿el cliente ya tenía el objetivo en el censo de partida? (así se separa "lo incorporó" de "ya lo compraba")
+  if (pb && CIDS.includes(pb)) sinFiltroSeg(() => { const ob0 = pdvTarget(pb, todos1(), pred); objB = i => ob0[i] > 0; });
   if (cierre) sinFiltroSeg(() => {
     const ok = todos1(), tot = pdvTot(ACT, ok, false), cmq = pdvTarget(ACT, ok, m => m.empresa === 'CMQ');
-    const pred = spec === 'EMP:CMQ' ? m => m.empresa === 'CMQ' : spec.startsWith('SEG:') ? m => m.segmento === spec.slice(4) && m.empresa === 'CMQ' : m => m.marca === spec.slice(4);
     const ob = pdvTarget(ACT, ok, pred);
     somN = i => tot[i] > 0 ? cmq[i] / tot[i] : null; objN = i => tot[i] > 0 ? ob[i] > 0 : null;
   });
@@ -1392,6 +1394,7 @@ function seguimientoPlan(p){
     const i = idx.get(id), pp = i == null ? null : P[i], e = est[fKey(id)] || {};
     const porMes = meses.map(m => compro(spec, id, m, IM));
     const r = {id, i, pp, som0, comp0, mot, e, porMes, compro: porMes.some(x => x === true)};
+    r.tenia = objB && i != null ? objB(i) : null; r.nuevo = r.tenia === false && r.compro;
     if (cierre && i != null){ r.somN = somN(i); r.dSom = r.somN == null || som0 == null ? null : r.somN - som0; r.objN = objN(i); }
     return r;
   });
@@ -1399,7 +1402,8 @@ function seguimientoPlan(p){
   const res = {spec, meses, cierre, filas, n,
     compraron: filas.filter(r => r.compro).length,
     ultMes: ult, compraronUlt: ult ? filas.filter(r => r.porMes[r.porMes.length - 1] === true).length : 0,
-    trabajados: filas.filter(r => r.e.e && r.e.e !== 'Pendiente').length};
+    trabajados: filas.filter(r => r.e.e && r.e.e !== 'Pendiente').length,
+    sinObj: filas.filter(r => r.tenia === false).length, incorporaron: filas.filter(r => r.nuevo).length, pb};
   if (cierre){
     const c = filas.filter(r => r.somN != null);
     res.censados = c.length; res.subieron = c.filter(r => r.dSom > 0.0001).length; res.conObj = c.filter(r => r.objN).length;
@@ -1418,6 +1422,7 @@ function resumenPlanHtml(p){
   const s = seguimientoPlan(p), pc = (a, b) => b ? ' (' + nf0.format(a / b * 100) + '%)' : '';
   return `<div class="kpis-pl">
     <div class="kpi"><div class="lab">Clientes del plan</div><div class="val">${fHL(s.n)}</div></div>
+    ${s.sinObj ? `<div class="kpi" style="border-color:var(--good)"><div class="lab">Incorporaron ${esc(compraLab(s.spec))}</div><div class="val">${s.meses.length ? fHL(s.incorporaron) + ' de ' + fHL(s.sinObj) + pc(s.incorporaron, s.sinObj) : '–'}</div><div class="muted" style="font-size:11px">no lo tenían en ${esc(s.pb || '')} y lo compraron después</div></div>` : ''}
     <div class="kpi"><div class="lab">Compraron ${esc(compraLab(s.spec))}</div><div class="val">${s.meses.length ? fHL(s.compraron) + pc(s.compraron, s.n) : '–'}</div><div class="muted" style="font-size:11px">${s.meses.length ? 'en ' + s.meses.map(fMes).join(', ') : 'sin ventas cargadas'}</div></div>
     ${s.ultMes ? `<div class="kpi"><div class="lab">Compraron en ${fMes(s.ultMes)}</div><div class="val">${fHL(s.compraronUlt)}${pc(s.compraronUlt, s.n)}</div></div>` : ''}
     <div class="kpi"><div class="lab">Trabajados (estado cargado)</div><div class="val">${fHL(s.trabajados)}${pc(s.trabajados, s.n)}</div></div>
@@ -1430,6 +1435,7 @@ function verClientesPlan(pid){
   const s = seguimientoPlan(p);
   let filas = s.filas;
   if (st.sup) filas = filas.filter(r => r.pp && r.pp.sup === st.sup);
+  if (st.solo === 'sinobj') filas = filas.filter(r => r.tenia === false);
   if (st.solo === 'nocompro') filas = filas.filter(r => !r.compro);
   if (st.solo === 'compro') filas = filas.filter(r => r.compro);
   if (st.solo === 'pend') filas = filas.filter(r => !r.e.e || r.e.e === 'Pendiente');
@@ -1440,8 +1446,9 @@ function verClientesPlan(pid){
     {lab: 'Supervisor', l: true, w: 118, fn: r => r.pp ? esc(r.pp.sup) : ''}, {lab: 'Promotor', l: true, w: 130, fn: r => r.pp ? esc(r.pp.ven) : ''},
     {lab: 'Motivo', l: true, w: 95, fn: r => mot(r.mot)},
     {lab: 'SOM<br>' + esc(p.cliBase || p.base || ''), bl: true, fn: r => fP(r.som0)}, {lab: 'HL<br>compet.', fn: r => fHL(r.comp0)},
+    {lab: 'Objetivo<br>en ' + esc(p.cliBase || p.base || ''), fn: r => r.tenia == null ? '–' : r.tenia ? '<span class="si">✔</span>' : '<span class="no">no tenía</span>'},
     ...s.meses.map((m, j) => ({lab: fMes(m), bl: j === 0, fn: r => r.porMes[j] === true ? '<span class="si">✔</span>' : r.porMes[j] === false ? '<span class="no">–</span>' : ''})),
-    {lab: '¿Compró?', bl: true, fn: r => s.meses.length ? (r.compro ? '<span class="si">SÍ</span>' : '<span class="no">NO</span>') : '–'},
+    {lab: '¿Compró?', bl: true, fn: r => s.meses.length ? (r.nuevo ? '<span class="si">SÍ · NUEVO</span>' : r.compro ? '<span class="si">SÍ</span>' : '<span class="no">NO</span>') : '–'},
     ...(s.cierre ? [{lab: 'SOM<br>' + esc(ACT), bl: true, fn: r => fP(r.somN)}, {lab: 'Δ SOM', fn: r => fPP(r.dSom)}, {lab: 'Objetivo<br>en censo', fn: r => r.objN == null ? '–' : r.objN ? '<span class="si">✔</span>' : '<span class="no">–</span>'}] : []),
     {lab: 'Estado', l: true, bl: true, fn: r => `<select class="est" data-pe="${esc(r.id)}" data-c="e">${EST_PDA.map(e => `<option ${e === (r.e.e || 'Pendiente') ? 'selected' : ''}>${e}</option>`).join('')}</select>`},
     {lab: 'Comentario', l: true, w: 220, fn: r => `<input class="com" data-pe="${esc(r.id)}" data-c="c" value="${esc(r.e.c || '')}" placeholder="Qué se hizo / qué dijo">` + (r.e.por ? `<div class="muted" style="font-size:10.5px">${esc(r.e.por)} · ${new Date(r.e.ts).toLocaleDateString('es-AR')}</div>` : '')},
@@ -1451,7 +1458,7 @@ function verClientesPlan(pid){
   $('#dlgB').innerHTML = `${resumenPlanHtml(p)}
     <p class="desc" style="margin-top:10px">"Compró" = el cliente compró <b>${esc(compraLab(s.spec))}</b> en algún mes cargado desde ${p.desde ? fMes(p.desde) : 'el inicio'} (se marca solo con la base de ventas). El estado y el comentario los carga el equipo y quedan firmados.${s.cierre ? ` Las columnas de ${esc(CNAME[ACT])} comparan contra la foto de ${esc(CNAME[p.cliBase || p.base] || p.cliBase || p.base)} tomada al armar el plan.` : ''}</p>
     <div class="tools"><label class="muted" style="font-size:12px">Supervisor</label><select id="pdSup"><option value="">Todos</option>${supsP.map(x => `<option ${x === st.sup ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-    <label class="muted" style="font-size:12px">Mostrar</label><select id="pdSolo">${[['', 'Todos'], ['nocompro', 'Los que todavía no compraron'], ['compro', 'Los que compraron'], ['pend', 'Pendientes de trabajar']].map(([v, l]) => `<option value="${v}" ${v === st.solo ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <label class="muted" style="font-size:12px">Mostrar</label><select id="pdSolo">${[['', 'Todos'], ['sinobj', 'Los que no lo tenían en el censo'], ['nocompro', 'Los que todavía no compraron'], ['compro', 'Los que compraron'], ['pend', 'Pendientes de trabajar']].map(([v, l]) => `<option value="${v}" ${v === st.solo ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <span class="muted" style="font-size:12px">${fHL(filas.length)} clientes</span></div>
     ${table('tSegPlan', cols, filas, {nosort: true, compact: true})}`;
   $('#pdSup').onchange = e => { st.sup = e.target.value; verClientesPlan(pid); };
@@ -1465,6 +1472,12 @@ function refrescarDlgPlan(){
   const y = $('#dlgB').scrollTop; verClientesPlan(S.plDlg.pid); $('#dlgB').scrollTop = y;
 }
 // ---------- base de ventas mensual ----------
+// nombres de marca de la venta (Chess) que no siguen el formato del censo
+const VENTA_REGLAS = [
+  [/1890|BAJO CERO/, '1890 + BAJO CERO'],
+  [/QUILMES.*(0[.,]0|CERO|SIN ALC)/, 'QUILMES 0.0%'], [/STELLA.*(0[.,]0|CERO|SIN ALC)/, 'STELLA ARTOIS 0.0%'], [/CORONA.*(0[.,]0|CERO|SIN ALC)/, 'CORONA 0.0%'],
+  [/STOUT QUILMES/, 'QUILMES'],
+];
 function leerVentas(A, mesSel){
   let hr = -1, H = null;
   for (let r = 0; r < Math.min(20, A.length); r++){
@@ -1478,8 +1491,11 @@ function leerVentas(A, mesSel){
   const cCli = cands.sort((a, b) => numerica(b) - numerica(a) || (/COD/.test(H[b]) ? 1 : 0) - (/COD/.test(H[a]) ? 1 : 0))[0];
   if (!numerica(cCli)) throw new Error('La columna "' + H[cCli] + '" no tiene códigos de cliente numéricos.');
   const busca = (...res) => { for (const re of res){ const j = H.findIndex(x => re.test(x)); if (j >= 0) return j; } return -1; };
-  const cMar = busca(/^MARCA$/, /MARCA/, /ARTICULO|PRODUCTO|DESCRIPCION ART/);
-  const cSeg = busca(/SEGMENTO/), cNeg = busca(/NEGOCIO/);
+  // en los export de Chess cada código viene seguido de su "Descripción": si la columna tiene números, usar la de al lado
+  const esNum = j => body.filter(r => r && /^\d+$/.test(String(r[j] ?? '').trim())).length > body.length / 2;
+  const desc = j => j >= 0 && esNum(j) && /^DESCRIPCION$/.test(H[j + 1] || '') ? j + 1 : j;
+  const cMar = desc(busca(/^MARCA$/, /MARCA/, /ARTICULO|PRODUCTO|DESCRIPCION ART/));
+  const cSeg = desc(busca(/SEGMENTO/)), cNeg = desc(busca(/NEGOCIO/));
   const cPer = busca(/DESCRIPCION PERIODO|FECHA DEL PERIODO/, /PERIODO/, /^MES$|^MES /, /FECHA/);
   const cQty = busca(/^HL$|HECTOLITRO/, /CANTIDAD/, /BULTOS/, /LITROS/, /VOLUMEN|UNIDADES/);
   if (cMar < 0 && cSeg < 0) throw new Error('No encontré una columna de Marca (o Segmento) para saber qué compró cada cliente.');
@@ -1511,11 +1527,13 @@ function leerVentas(A, mesSel){
     const nom = cMar >= 0 ? SINT(UP(r[cMar])).replace(/^CERVEZAS? /, '') : '';
     if (nom && Object.prototype.hasOwnProperty.call(D.ventaMap, nom)) key = D.ventaMap[nom] || '';
     else if (nom){
-      const rg = REGLAS.find(x => x[0].test(nom));
+      const pre = VENTA_REGLAS.find(x => x[0].test(nom));
+      const rg = pre ? [null, pre[1], 'CMQ', null, true] : REGLAS.find(x => x[0].test(nom));
       if (rg && rg[2] === 'CMQ' && rg[4]) key = rg[1];
       else if (IM[nom] && IM[nom].emp === 'CMQ') key = nom;
     }
     if (key === null && cSeg >= 0){ const sg = SINT(UP(r[cSeg])); if (SEGMENTOS.includes(sg)) key = '~SEG:' + sg; }
+    if (key === null && /NO APLICABLE/.test(nom)) continue;
     if (key === null){ if (nom) sinMap[nom] = (sinMap[nom] || 0) + q; continue; }
     if (key === '') continue;
     const mes = (cPer >= 0 ? mesDe(r[cPer]) : null) || mesSel;

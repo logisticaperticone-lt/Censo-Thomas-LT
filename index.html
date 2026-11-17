@@ -1423,10 +1423,11 @@ function seguimientoPlan(p){
     r.hlCenso = hlB && i != null ? hlB(i) : null;
     r.hlMes = mesesHL.map(m => hlObj(spec, id, m, IM)); r.hlRef = refHL.map(m => hlObj(spec, id, m, IM));
     r.hlProm = mesesHL.length ? r.hlMes.reduce((a, b) => a + b, 0) / mesesHL.length : null;
-    if (r.hlProm != null && r.hlCenso != null){
-      r.dHL = r.hlProm - r.hlCenso;
-      r.tend = r.hlCenso > 0 ? (r.hlProm > r.hlCenso * (1 + TEND_UMBRAL) ? 'Creció' : r.hlProm < r.hlCenso * (1 - TEND_UMBRAL) ? 'Cayó' : 'Igual')
-                             : (r.hlProm > 0 ? 'Creció' : 'Sin venta');
+    r.hlBase = refHL.length ? r.hlRef.reduce((a, b) => a + b, 0) / refHL.length : r.hlCenso;
+    if (r.hlProm != null && r.hlBase != null){
+      r.dHL = r.hlProm - r.hlBase;
+      r.tend = r.hlBase > 0 ? (r.hlProm > r.hlBase * (1 + TEND_UMBRAL) ? 'Creció' : r.hlProm < r.hlBase * (1 - TEND_UMBRAL) ? 'Cayó' : 'Igual')
+                            : (r.hlProm > 0 ? 'Creció' : 'Sin venta');
     }
     if (cierre && i != null){ r.somN = somN(i); r.dSom = r.somN == null || som0 == null ? null : r.somN - som0; r.objN = objN(i); }
     return r;
@@ -1438,15 +1439,16 @@ function seguimientoPlan(p){
     trabajados: filas.filter(r => r.e.e && r.e.e !== 'Pendiente').length,
     sinObj: filas.filter(r => r.tenia === false).length, incorporaron: filas.filter(r => r.nuevo).length};
   if (mesesHL.length){
-    res.hlCenso = suma(r => r.hlCenso); res.hlProm = suma(r => r.hlProm);
+    res.hlCenso = suma(r => r.hlCenso); res.hlProm = suma(r => r.hlProm); res.hlBase = suma(r => r.hlBase);
+    res.baseLab = refHL.length ? 'prom. ' + refHL.map(fMes).join(' y ') : 'censo ' + (pb || '');
     res.hlMes = mesesHL.map((m, j) => suma(r => r.hlMes[j])); res.hlRef = refHL.map((m, j) => suma(r => r.hlRef[j]));
     res.tend = {Creció: 0, Igual: 0, Cayó: 0, 'Sin venta': 0}; filas.forEach(r => { if (r.tend) res.tend[r.tend]++; });
     const porSup = {};
     filas.forEach(r => {
-      const k = r.pp ? r.pp.sup : '(sin supervisor)', o = porSup[k] = porSup[k] || {k, n: 0, hlCenso: 0, hlProm: 0, Creció: 0, Igual: 0, Cayó: 0, 'Sin venta': 0, compraron: 0};
-      o.n++; o.hlCenso += r.hlCenso || 0; o.hlProm += r.hlProm || 0; if (r.tend) o[r.tend]++; if (r.compro) o.compraron++;
+      const k = r.pp ? r.pp.sup : '(sin supervisor)', o = porSup[k] = porSup[k] || {k, n: 0, hlCenso: 0, hlBase: 0, hlProm: 0, Creció: 0, Igual: 0, Cayó: 0, 'Sin venta': 0, compraron: 0};
+      o.n++; o.hlCenso += r.hlCenso || 0; o.hlBase += r.hlBase || 0; o.hlProm += r.hlProm || 0; if (r.tend) o[r.tend]++; if (r.compro) o.compraron++;
     });
-    res.porSup = Object.values(porSup).sort((a, b) => b.hlCenso - a.hlCenso);
+    res.porSup = Object.values(porSup).sort((a, b) => b.hlBase - a.hlBase);
     res.foco = filas.filter(r => r.tend && r.tend !== 'Creció').sort((a, b) => (b.comp0 || 0) - (a.comp0 || 0)).slice(0, 20);
   }
   if (cierre){
@@ -1470,8 +1472,8 @@ function resumenPlanHtml(p){
   const obj = esc(compraLab(s.spec));
   return `<div class="kpis-pl">
     <div class="kpi"><div class="lab">Clientes del plan</div><div class="val">${fHL(s.n)}</div><div class="muted" style="font-size:11px">foto de ${esc(s.pb || '')}</div></div>
-    ${s.mesesHL.length ? `<div class="kpi" style="border-color:var(--accent)"><div class="lab">HL de ${obj} · promedio mensual</div><div class="val">${fHL1(s.hlProm)} <span style="font-size:13px">vs ${fHL1(s.hlCenso)} en ${esc(s.pb)}</span></div><div style="font-size:12px">${fVar(s.hlProm, s.hlCenso)} <span class="muted">· ${s.mesesHL.map((m, j) => fMes(m) + ': ' + fHL1(s.hlMes[j])).join(' · ')}${s.refHL.length ? ' · referencia ' + s.refHL.map((m, j) => fMes(m) + ': ' + fHL1(s.hlRef[j])).join(' · ') : ''}</span></div></div>
-    <div class="kpi"><div class="lab">Clientes vs el censo (±${TEND_UMBRAL * 100}%)</div><div class="val" style="font-size:15px"><span class="up">▲ ${s.tend.Creció}</span> · ${s.tend.Igual} = · <span class="down">▼ ${s.tend.Cayó}</span>${s.tend['Sin venta'] ? ` · <span class="muted">${s.tend['Sin venta']} sin venta</span>` : ''}</div><div class="muted" style="font-size:11px">crecieron · igual · cayeron</div></div>` : ''}
+    ${s.mesesHL.length ? `<div class="kpi" style="border-color:var(--accent)"><div class="lab">HL de ${obj} · promedio mensual</div><div class="val">${fHL1(s.hlProm)} <span style="font-size:13px">vs ${fHL1(s.hlBase)} (${esc(s.baseLab)})</span></div><div style="font-size:12px">${fVar(s.hlProm, s.hlBase)} <span class="muted">· ${s.mesesHL.map((m, j) => fMes(m) + ': ' + fHL1(s.hlMes[j])).join(' · ')}${s.refHL.length ? ' · referencia ' + s.refHL.map((m, j) => fMes(m) + ': ' + fHL1(s.hlRef[j])).join(' · ') : ''}</span></div></div>
+    <div class="kpi"><div class="lab">Clientes vs ${esc(s.baseLab)} (±${TEND_UMBRAL * 100}%)</div><div class="val" style="font-size:15px"><span class="up">▲ ${s.tend.Creció}</span> · ${s.tend.Igual} = · <span class="down">▼ ${s.tend.Cayó}</span>${s.tend['Sin venta'] ? ` · <span class="muted">${s.tend['Sin venta']} sin venta</span>` : ''}</div><div class="muted" style="font-size:11px">crecieron · igual · cayeron</div></div>` : ''}
     ${s.sinObj ? `<div class="kpi" style="border-color:var(--good)"><div class="lab">Incorporaron ${obj}</div><div class="val">${s.meses.length ? fHL(s.incorporaron) + ' de ' + fHL(s.sinObj) + pc(s.incorporaron, s.sinObj) : '–'}</div><div class="muted" style="font-size:11px">no lo tenían en ${esc(s.pb || '')} y lo compraron después</div></div>` : ''}
     <div class="kpi"><div class="lab">Compraron ${obj}</div><div class="val">${s.meses.length ? fHL(s.compraron) + pc(s.compraron, s.n) : '–'}</div><div class="muted" style="font-size:11px">${s.meses.length ? 'en ' + s.meses.map(fMes).join(', ') : 'sin ventas cargadas después del censo'}</div></div>
     <div class="kpi"><div class="lab">Trabajados (estado cargado)</div><div class="val">${fHL(s.trabajados)}${pc(s.trabajados, s.n)}</div></div>
@@ -1507,7 +1509,7 @@ function verClientesPlan(pid){
     {lab: 'HL objetivo<br>censo ' + pb, fn: r => r.hlCenso == null ? '–' : r.hlCenso > 0 ? fHL1(r.hlCenso) : '<span class="no">no tenía</span>'},
     ...s.refHL.map((m, j) => ({lab: fMes(m) + '<br><span class="muted">ref.</span>', bl: j === 0, fn: r => r.hlRef[j] > 0 ? `<span class="muted">${fHL1(r.hlRef[j])}</span>` : '<span class="no">–</span>'})),
     ...s.meses.map((m, j) => ({lab: fMes(m), bl: j === 0, fn: r => celdaMes(r, j, m)})),
-    ...(hayHL ? [{lab: 'Prom.<br>vendido', bl: true, fn: r => fHL1(r.hlProm)}, {lab: 'vs censo', fn: r => r.hlCenso > 0 ? fVar(r.hlProm, r.hlCenso) : ''}, {lab: 'Tendencia', l: true, fn: tendCell}] : []),
+    ...(hayHL ? [{lab: 'Base<br>' + esc(s.refHL.length ? 'prom. ref.' : 'censo'), bl: true, fn: r => fHL1(r.hlBase)}, {lab: 'Prom.<br>vendido', fn: r => fHL1(r.hlProm)}, {lab: 'vs base', fn: r => r.hlBase > 0 ? fVar(r.hlProm, r.hlBase) : ''}, {lab: 'Tendencia', l: true, fn: tendCell}] : []),
     {lab: '¿Compró?', bl: !hayHL, fn: r => s.meses.length ? (r.nuevo ? '<span class="si">SÍ · NUEVO</span>' : r.compro ? '<span class="si">SÍ</span>' : '<span class="no">NO</span>') : '–'},
     ...(s.cierre ? [{lab: 'SOM<br>' + esc(ACT), bl: true, fn: r => fP(r.somN)}, {lab: 'Δ SOM', fn: r => fPP(r.dSom)}, {lab: 'Objetivo<br>en censo', fn: r => r.objN == null ? '–' : r.objN ? '<span class="si">✔</span>' : '<span class="no">–</span>'}] : []),
     {lab: 'Estado', l: true, bl: true, fn: r => `<select class="est" data-pe="${esc(r.id)}" data-c="e">${EST_PDA.map(e => `<option ${e === (r.e.e || 'Pendiente') ? 'selected' : ''}>${e}</option>`).join('')}</select>`},
@@ -1515,17 +1517,17 @@ function verClientesPlan(pid){
   ];
   const tSup = hayHL ? `<h3 style="font-size:14px;margin:14px 0 6px">Por supervisor</h3>${table('tSegSup', [
       {lab: 'Supervisor', l: true, fn: o => esc(o.k)}, {lab: 'Clientes', fn: o => fHL(o.n)},
-      {lab: 'HL censo ' + pb, bl: true, fn: o => fHL1(o.hlCenso)}, {lab: 'HL prom. vendido', fn: o => fHL1(o.hlProm)}, {lab: 'vs censo', fn: o => fVar(o.hlProm, o.hlCenso)},
+      {lab: 'HL base (' + esc(s.baseLab || '') + ')', bl: true, fn: o => fHL1(o.hlBase)}, {lab: 'HL prom. vendido', fn: o => fHL1(o.hlProm)}, {lab: 'vs base', fn: o => fVar(o.hlProm, o.hlBase)},
       {lab: '▲ Crecieron', bl: true, fn: o => `<span class="up">${o.Creció}</span>`}, {lab: '= Igual', fn: o => o.Igual}, {lab: '▼ Cayeron', fn: o => `<span class="down">${o.Cayó}</span>`}, {lab: 'Sin venta', fn: o => o['Sin venta']},
       {lab: 'Compraron', bl: true, fn: o => fHL(o.compraron)}], s.porSup, {nosort: true, compact: true})}` : '';
   const tFoco = hayHL && s.foco.length ? `<h3 style="font-size:14px;margin:14px 0 6px">Lista de foco: más competencia y todavía no crecieron</h3>${table('tSegFoco', [
       {lab: 'Cliente', l: true, fn: r => esc(r.pp ? r.pp.rs : r.id) + ` <span class="muted" style="font-size:11px">${r.id}</span>`}, {lab: 'Supervisor', l: true, fn: r => r.pp ? esc(r.pp.sup) : ''}, {lab: 'Promotor', l: true, fn: r => r.pp ? esc(r.pp.ven) : ''},
-      {lab: 'HL compet. ' + pb, bl: true, fn: r => `<b>${fHL1(r.comp0)}</b>`}, {lab: 'HL objetivo censo', fn: r => fHL1(r.hlCenso)}, {lab: 'Prom. vendido', fn: r => fHL1(r.hlProm)}, {lab: 'Tendencia', l: true, fn: tendCell}, {lab: 'Estado', l: true, fn: r => esc(r.e.e || 'Pendiente')}],
+      {lab: 'HL compet. ' + pb, bl: true, fn: r => `<b>${fHL1(r.comp0)}</b>`}, {lab: 'HL base', fn: r => fHL1(r.hlBase)}, {lab: 'Prom. vendido', fn: r => fHL1(r.hlProm)}, {lab: 'Tendencia', l: true, fn: tendCell}, {lab: 'Estado', l: true, fn: r => esc(r.e.e || 'Pendiente')}],
       s.foco, {nosort: true, compact: true})}` : '';
   $('#dlg').classList.add('ancho');
   $('#dlgT').textContent = `${p.titulo} — seguimiento de ${s.n} clientes`;
   $('#dlgB').innerHTML = `${resumenPlanHtml(p)}
-    <p class="desc" style="margin-top:10px">La base es lo que cada cliente declaró en el censo de <b>${esc(CNAME[s.pb] || s.pb || '')}</b> (HL mensuales de <b>${esc(compraLab(s.spec))}</b>). ${s.ref.length ? `Los meses hasta ${s.mc ? fMes(s.mc) : 'el censo'} se muestran como referencia y no cuentan como avance. ` : ''}"Creció / Cayó" compara el promedio mensual vendido después del censo contra el censo (±${TEND_UMBRAL * 100}%). El estado y el comentario los carga el equipo y quedan firmados.</p>
+    <p class="desc" style="margin-top:10px">Se compara la venta de <b>${esc(compraLab(s.spec))}</b> a cada cliente: promedio mensual después del censo contra la <b>base = ${s.refHL.length ? 'promedio de ' + s.refHL.map(fMes).join(' y ') + ' (venta antes del censo)' : 'HL declarados en el censo de ' + esc(CNAME[s.pb] || s.pb || '')}</b>, con ±${TEND_UMBRAL * 100}% de margen para "Creció / Cayó". La columna "HL objetivo censo" queda solo como dato de lo que declaró el cliente. El estado y el comentario los carga el equipo y quedan firmados.</p>
     ${tSup}${tFoco}
     <h3 style="font-size:14px;margin:14px 0 6px">Todos los clientes del plan</h3>
     <div class="tools"><label class="muted" style="font-size:12px">Supervisor</label><select id="pdSup"><option value="">Todos</option>${supsP.map(x => `<option ${x === st.sup ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
